@@ -1,6 +1,7 @@
 import numpy as np
+cimport numpy as cnp
 
-def matelcontract(nmodes,modes,ops,opips,A, spfovs=None, conj=False):
+def matelcontract(int nmodes,list modes,ops,opips,cnp.ndarray A, spfovs=None,conj=False):
     """Computes the contractions required for mctdh coefficient eom.
 
     Input
@@ -20,6 +21,14 @@ def matelcontract(nmodes,modes,ops,opips,A, spfovs=None, conj=False):
     Notes
     -----
     """
+    cdef int i
+    cdef cnp.ndarray output
+    cdef int count
+    cdef int opcount
+    cdef list skipped
+    cdef list unskipped
+    cdef list outorder
+    cdef list outaxes
     if modes == None: # purely electronic operator
         if spfovs == None:
             # no contraction should occur
@@ -61,7 +70,7 @@ def matelcontract(nmodes,modes,ops,opips,A, spfovs=None, conj=False):
         outaxes = [outorder.index(i) for i in range(len(outorder))]
         return np.transpose(output, axes=outaxes)
 
-def atensorcontract(modes, *As, spfovs=None, spfovsconj=False):
+def atensorcontract(int nmodes, list modes, *As, spfovs=None, spfovsconj=False):
     """Function that does the contraction over MCTDH A tensor when computing 
     mean field operators.
 
@@ -94,19 +103,23 @@ def atensorcontract(modes, *As, spfovs=None, spfovsconj=False):
     <h(t)>^k_{nm} = <\phi^k_n (t)| h^1_k |\phi^k_m (t)> x
                       \sum_{pq} O_{nmpq} <\phi^l_p (t)| h^1_l |\phi^k_q (t)>
     """
-    A = As[0]
-    nmodes = len(A.shape)
+    cdef int i
+    cdef list path
+    cdef cnp.ndarray output
+    cdef int count
+    cdef list path1
+    cdef list path2
     # generate the initial list of indices, which will all be independent
     if spfovs == None:
         path = [i for i in range(nmodes)]
         for i in range(len(modes)):
             path.remove(modes[i])
         if len(As) == 1:
-            return np.tensordot(A.conj(),A,axes=[path,path])
+            return np.tensordot(As[0].conj(),As[0],axes=[path,path])
         elif len(As) == 2:
-            return np.tensordot(A.conj(),As[1],axes=[path,path])
+            return np.tensordot(As[0].conj(),As[1],axes=[path,path])
     else:
-        output = A.conj()
+        output = As[0].conj()
         count = 0
         path1 = []
         path2 = []
@@ -122,7 +135,7 @@ def atensorcontract(modes, *As, spfovs=None, spfovsconj=False):
                 count += 1
         return np.tensordot(output,As[1],axes=[path1,path2])
 
-def ahtensorcontract(A,h,order,conj=False):
+def ahtensorcontract(int nmodes,cnp.ndarray A,cnp.ndarray[complex, ndim=2] h,int order,conj=False):
     """Function that does the contraction over remaining MCTDH A tensor with 
     hamiltonian term matrix elements mwhen computing mean field operators.
 
@@ -138,16 +151,16 @@ def ahtensorcontract(A,h,order,conj=False):
     np.ndarray - the tensor of coefficients that were not contracted over,
     should be a tensor with 2 fewer dimensions than what came in
     """
-    nmodes = len(A.shape)
-    nmodes = int(nmodes/2)
+    cdef int nmodes_ = int(nmodes/2)
+    cdef list path
     if order == 0:
         if conj:
-            path = [nmodes,0]
+            path = [nmodes_,0]
         else:
-            path = [0,nmodes]
+            path = [0,nmodes_]
     else:
         if conj:
-            path = [nmodes+1,1]
+            path = [nmodes_+1,1]
         else:
-            path = [1,nmodes+1]
+            path = [1,nmodes_+1]
     return np.tensordot(A,h,axes=[path,[0,1]])

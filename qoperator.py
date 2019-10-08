@@ -5,18 +5,17 @@ class QOperator(object):
     """Generic operator class for user defined potentials.
     """
 
-    def __init__(self, nmodes, term, wf=None):
+    def __init__(self, nmodes, term, pbfs=None):
         """
         """
         self.nmodes = nmodes
         self.term = term
         self.term_setup()
         self.op_setup()
-        if wf != None:
-            assert(wf.nmodes == nmodes)
+        if pbfs != None:
             # make all the operators for the pbf
             for i in range(nmodes):
-                wf.pbfs[i].make_operators(self._ops[i])
+                pbfs[i].make_operators(self._ops[i])
 
     def term_setup(self):
         """Setup function that makes sure all keywords are properly defined and

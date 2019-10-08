@@ -5,62 +5,85 @@ from optools import compute_el_mes,precompute_ops,matel
 from cy.wftools import (overlap_matrices,compute_density_matrix,
                         invert_density_matrix,act_density,act_projector,
                         compute_projector)
-from meanfield import compute_meanfield_corr,compute_meanfield_uncorr
+from meanfield import (compute_meanfield_corr,compute_meanfield_uncorr,
+                       act_meanfield)
 
-def eom(t,dt,nel,nmodes,nspfs,npbfs,spfstart,spfend,ham,pbfs,A,spfs):#,cmfflag=0):
+def eom(t,dt,nel,nmodes,nspfs,npbfs,spfstart,spfend,ham,pbfs,A,spfs):
     """Evaluates the equation of motion for the coefficients and orbitals.
     """
-    # precompute action of hamiltonian terms on spfs and inner products
+    # precompute stuff needed for equaitons of motion
     opspfs, opips = precompute_ops(nel,nmodes,nspfs,npbfs,spfstart,spfend,
                                    ham.ops,pbfs,spfs)
-    # precompute wavefunction overlap matrices
     spfovs = overlap_matrices(nel,nmodes,nspfs,npbfs,spfstart,spfs)
-    # evaluate equation of motion for coefficients
+    # evaluate equations of motion
     dA = eom_coeffs(nel,nmodes,nspfs,npbfs,ham,opips,spfovs,A)
-    # evaluate equation of motion for orbitals
     dspfs = eom_spfs(nel,nmodes,nspfs,npbfs,spfstart,spfend,ham,opspfs,opips,
-                     spfovs,A,spfs)#,cmfflag)
+                     spfovs,A,spfs)
     return dA,dspfs 
 
-def eom_coeffs(nel,nmodes,nspfs,npbfs,ham,opips,spfovs,A):#,cmfflag):
+def eom_coeffs(nel,nmodes,nspfs,npbfs,ham,opips,spfovs,A):
     """Evaluates the equation of motion for the mctdh coefficients.
     """
     return -1.j*matel(nel,nmodes,nspfs,npbfs,ham.hterms,opips,spfovs,A)
 
 def eom_spfs(nel,nmodes,nspfs,npbfs,spfstart,spfend,ham,opspfs,opips,spfovs,A,
-             spfs):#,cmfflag):
+             spfs,mfs=None,rhos=None,projs=None):
     """Evaluates the equation of motion for the mctdh single particle funcitons.
     """
     spfsout = np.zeros(nel, dtype=np.ndarray)
     for alpha in range(nel):
         spfsout[alpha] = np.zeros_like(spfs[alpha], dtype=complex)
         for beta in range(nel):
-            spfsout[alpha] += compute_meanfield_corr(nmodes,nspfs,npbfs,spfstart,
-                              spfend,alpha,beta,ham.hcterms,opspfs,opips,spfovs,
-                              A,spfs)
+            if mfs is None:
+                spfsout[alpha] += compute_meanfield_corr(nmodes,nspfs,npbfs,spfstart,
+                                    spfend,alpha,beta,ham.hcterms,opspfs,opips,spfovs,
+                                    A,spfs)
+            else:
+                for mode in range(nmodes):
+                    nspf_l = nspfs[alpha,mode]
+                    nspf_r = nspfs[beta,mode]
+                    npbf   = npbfs[mode]
+                    ind0_l = spfstart[alpha,mode]
+                    indf_l = spfend[alpha,mode]
+                    ind0_r = spfstart[beta,mode]
+                    indf_r = spfend[beta,mode]
+                    spfsout[alpha][ind0_l:indf_l] += act_meanfield(nspf_l,nspf_r,npbf,mode,
+                                        mfs[alpha][beta][mode][0],mfs[alpha][beta][mode][1],
+                                        opspfs[beta][mode],spfs[beta][ind0_r:indf_r])
         for mode in range(nmodes):
             nspf = nspfs[alpha,mode]
             npbf = npbfs[mode]
             ind0 = spfstart[alpha,mode]
             indf = spfend[alpha,mode]
-            # compute and invert density matrix
-            rho = compute_density_matrix(nspf,alpha,mode,A[alpha])
+            rho = compute_density_matrix(nspf,alpha,nmodes,mode,A[alpha])
             rho = invert_density_matrix(rho)
-            # act the inverted density matrix on the spfs of this mode and state
-            spftmp = act_density(nspf,npbf,rho,spfsout[alpha][ind0:indf])
+            if rhos is None: 
+                # compute and invert density matrix
+                rho = compute_density_matrix(nspf,alpha,nmodes,mode,A[alpha])
+                rho = invert_density_matrix(rho)
+                # act the inverted density matrix on the spfs of this mode and state
+                spftmp = act_density(nspf,npbf,rho,spfsout[alpha][ind0:indf])
+            else:
+                # act the inverted density matrix on the spfs of this mode and state
+                spftmp = act_density(nspf,npbf,rhos[alpha][mode],spfsout[alpha][ind0:indf])
             # add uncorrelated terms # TODO double check these two
             #spftmp += compute_meanfield_uncorr(alpha,mode,ham.huterms,opspfs,
             #                                   spfsout[alpha][ind0:indf])
             spftmp += compute_meanfield_uncorr(alpha,mode,ham.huterms,opspfs,
                                                spfs[alpha][ind0:indf])
-            # compute projector
-            proj = compute_projector(nspf,npbf,spfs[alpha][ind0:indf])
-            # act (1-proj) on spfs
-            act_projector(nspf,npbf,proj,spftmp,spfsout[alpha][ind0:indf])
+            if projs is None:
+                # compute projector
+                proj = compute_projector(nspf,npbf,spfs[alpha][ind0:indf])
+                # act (1-proj) on spfs
+                act_projector(nspf,npbf,proj,spftmp,spfsout[alpha][ind0:indf])
+            else:
+                # act (1-proj) on spfs
+                act_projector(nspf,npbf,projs[alpha][mode],spftmp,spfsout[alpha][ind0:indf])
     return -1.j*spfsout
 
 if __name__ == "__main__":
 
+    from time import time
     import numpy as np
     import units
     from wavefunction import Wavefunction
@@ -70,7 +93,7 @@ if __name__ == "__main__":
 
     nel    = 2
     nmodes = 4
-    nspfs = np.array([[7, 12, 6, 5],
+    nspfs = np.array([[8, 13, 7, 6],
                      [7, 12, 6, 5]], dtype=int)
     npbfs = np.array([22, 32, 21, 12], dtype=int)
 
@@ -116,16 +139,21 @@ if __name__ == "__main__":
 
     ham = Hamiltonian(nmodes, hterms, pbfs=pbfs)
 
-    opspfs,opips = precompute_ops(wf.nel,wf.nmodes,wf.nspfs,wf.npbfs,wf.spfstart,wf.spfend,ham.ops,pbfs,wf.spfs)
-    print('uncorr terms')
-    print(ham.huterms)
-    print('corr terms')
-    print(ham.hcterms)
-    for i in range(nel):
-        for j in range(nmodes):
-            print(i,j)
-            print(opspfs[i][j].keys())
-    #print(opspfs)
+    #btime = time()
+    wf.A,wf.spfs = eom(0.0,0.5,wf.nel,wf.nmodes,wf.nspfs,wf.npbfs,wf.spfstart,wf.spfend,ham,pbfs,wf.A,wf.spfs)
+    #print(time()-btime)
+
+    print(wf.A[0][1,0,0,0])
+#    opspfs,opips = precompute_ops(wf.nel,wf.nmodes,wf.nspfs,wf.npbfs,wf.spfstart,wf.spfend,ham.ops,pbfs,wf.spfs)
+#    print('uncorr terms')
+#    print(ham.huterms)
+#    print('corr terms')
+#    print(ham.hcterms)
+#    for i in range(nel):
+#        for j in range(nmodes):
+#            print(i,j)
+#            print(opspfs[i][j].keys())
+#    #print(opspfs)
 #    spfovs = overlap_matrices(wf.nel,wf.nmodes,wf.nspfs,wf.npbfs,wf.spfstart,wf.spfs)
 #    Aout = eom_coeffs(wf.nel,wf.nmodes,wf.nspfs,wf.npbfs,ham,opips,spfovs,wf.A)
 #    energy = 0.0j
@@ -133,7 +161,6 @@ if __name__ == "__main__":
 #        energy += (1.j*np.sum(wf.A[i].conj()*Aout[i])).real*units.convert_from('ev')
 #    print(energy)
 #
-#    wf.A,wf.spfs = eom(0.0,0.5,wf.nel,wf.nmodes,wf.nspfs,wf.npbfs,wf.spfstart,wf.spfend,ham,pbfs,wf.A,wf.spfs)
 #
 #    print('first')
 #    dwfn = eom(0.0,0.1,wf,ham)

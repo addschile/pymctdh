@@ -1,8 +1,10 @@
 import numpy as np
-from eom import eom
+from scipy.linalg import expm
+from eom import eom,eom_coeffs,eom_spfs
+from optools import matel
+from cy.wftools import norm,inner
 from functools import lru_cache
 import units as units
-import time
 
 @lru_cache(maxsize=None,typed=False)
 def get_butcher(method):
@@ -90,11 +92,12 @@ def get_butcher(method):
 #     @ e12 = -0.2235530786388629525884427845D-01 )
     return a,b,c
 
-def euler(t_start, t_finish, dt, y, ham, pbf):
+def euler(t_start, t_finish, dt, y, ham, pbf, cmfflag=False, eq=None):
     """Runs forward euler integration for equations of motion. Only used for
     testing code really.
     """
-    k_A,k_spf = eom(t0,dt,nel,nmodes,nspf,npbf,spfstart,spfend,ham,pbf,y_A,y_spf)
+    if not cmfflag:
+        k_A,k_spf = eom(t0,dt,nel,nmodes,nspf,npbf,spfstart,spfend,ham,pbf,y_A,y_spf)
     # TODO change stuff
     #energy = y.compute_energy(k)
     # TODO change stuff
@@ -102,7 +105,8 @@ def euler(t_start, t_finish, dt, y, ham, pbf):
     y.spf += dt*k_spf
     return# energy , 0.0
 
-def rk(t_start, t_finish, dt, y, ham, pbfs, method='rk8'):
+def rk(t_start, t_finish, dt, y, ham, pbfs, method='rk8', cmfflag=False, eq=None, 
+       opspfs=None, opips=None, spfovs=None, mfs=None, rhos=None, projs=None):
     """Dormand-Prince Runge-Kutta based algorithms with adaptive time-stepping.
     """
 
@@ -147,6 +151,38 @@ def rk(t_start, t_finish, dt, y, ham, pbfs, method='rk8'):
             dt = t_finish-t0
 
         # do propagation
+        #if cmfflag:
+        #    if eq == 'spfs':
+        #        k_spfs = np.zeros(nsteps, np.ndarray)
+        #        for i in range(nsteps):
+        #            y_spfs = y.copy(arg='spfs')
+        #            for j in range(len(a[i])):
+        #                if a[i][j] != 0.0:
+        #                    y_spfs += k_spfs[j]*a[i][j]*dt
+        #            k_spfs[i] = eom_spfs(nel,nmodes,nspfs,npbfs,spfstart,spfend,
+        #                                 ham,opspfs,opips,spfovs,y.A,y_spfs,
+        #                                 mfs=mfs,rhos=rhos,projs=projs)
+        #        # compute output
+        #        for i in range(len(a[-1])):
+        #            if a[-1][i] != 0.0:
+        #                for j in range(nel):
+        #                    y.spfs[j] += k_spfs[i][j]*a[-1][i]*dt
+        #    elif eq == 'coeffs':
+        #        k_A = np.zeros(nsteps, np.ndarray)
+        #        for i in range(nsteps):
+        #            y_A = y.copy(arg='A')
+        #            for j in range(len(a[i])):
+        #                if a[i][j] != 0.0:
+        #                    y_A += k_A[j]*a[i][j]*dt
+        #            k_A[i] = eom_coeffs(nel,nmodes,nspfs,npbfs,ham,opips,spfovs,y_A)
+        #        # compute output
+        #        for i in range(len(a[-1])):
+        #            if a[-1][i] != 0.0:
+        #                for j in range(nel):
+        #                    y.A[j] += k_A[i][j]*a[-1][i]*dt
+        #    else:
+        #        raise ValueError('Not a valid eq')
+        #else:
         k_A = np.zeros(nsteps, np.ndarray)
         k_spfs = np.zeros(nsteps, np.ndarray)
         for i in range(nsteps):
@@ -160,7 +196,6 @@ def rk(t_start, t_finish, dt, y, ham, pbfs, method='rk8'):
                                    spfend,ham,pbfs,y_A,y_spfs)
             #if i==0:
             #    energy = y.compute_energy(k[-1])
-
         # compute output
         for i in range(len(a[-1])):
             if a[-1][i] != 0.0:
@@ -170,3 +205,101 @@ def rk(t_start, t_finish, dt, y, ham, pbfs, method='rk8'):
 
         t0 += dt
     #return energy,error
+
+################################################################################
+# Generalized krylov subspace method functions                                 #
+################################################################################
+def lanczos(y, ham, opips, spfovs, nvecs=5, v0=None, return_evecs=True):
+    """
+    """
+    # get wavefunction info
+    nel      = y.nel
+    nmodes   = y.nmodes
+    nspfs    = y.nspfs
+    npbfs    = y.npbfs
+    spfstart = y.spfstart
+    spfend   = y.spfend
+    A        = y.A
+
+    # thing to store A tensors
+    V = np.zeros(nvecs, np.ndarray)
+    V[0] = A/norm(nel,A)
+    T = np.zeros((nvecs,nvecs))
+
+    # form krylov vectors and tridiagonal matrix
+    for i in range(nvecs-1):
+        V[i+1] = matel(nel,nmodes,nspfs,npbfs,ham.hterms,opips,spfovs,V[i])
+        # compute alpha 
+        T[i,i] = inner(nel,V[i],V[i+1]).real
+        if i>0:
+            V[i+1] += -T[i,i]*V[i] - T[i-1,i]*V[i-1]
+        else:
+            V[i+1] += -T[i,i]*V[i]
+        # normalize previous vector
+        nvprev = norm(nel,V[i+1])
+        V[i+1] /= nvprev
+        # compute beta
+        T[i,i+1] = nvprev
+        T[i+1,i] = T[i,i+1]
+    T[-1,-1] = inner(nel,V[-1], matel(nel,nmodes,nspfs,npbfs,ham.hterms,opips,spfovs,V[-1])).real
+
+    if return_evecs:
+        return T , V
+    else:
+        return T
+
+def arnoldi(y, ham, opips, spfovs, nvecs=5, v0=None, return_evecs=True):
+    """
+    """
+    # get wavefunction info
+    nel      = y.nel
+    nmodes   = y.nmodes
+    nspfs    = y.nspfs
+    npbfs    = y.npbfs
+    spfstart = y.spfstart
+    spfend   = y.spfend
+    A        = y.A
+
+    # thing to store A tensors
+    V = np.zeros(nvecs, np.ndarray)
+    V[0] = A/norm(nel,A)
+
+    # form krylov subspace and upper hessenberg matrix
+    T = np.zeros((nvecs,nvecs), dtype=complex)
+    for j in range(nvecs-1):
+        w = matel(nel,nmodes,nspfs,npbfs,ham.hterms,opips,spfovs,V[j])
+        for i in range(j+1):
+            T[i,j] = inner(nel, w, V[i])
+            w -= T[i,j]*V[i]
+        if j < nvecs-1:
+            T[j+1,j] = norm(nel,w)
+            V[j+1] = w/T[j+1,j]
+
+    return T , V
+
+################################################################################
+# Functions that use krylov subspace methods for oring all the vectors         #
+################################################################################
+def propagate(V, T, dt):
+    """
+    """
+    nvecs = len(V)
+    psiprop = expm(-1.j*dt*T)[:,0]
+    for i in range(nvecs):
+        if i==0:
+            psiout = psiprop[i]*V[i]
+        else:
+            psiout += psiprop[i]*V[i]
+    return psiout
+
+def krylov_prop(t_start, t_finish, dt, y, ham, opips, spfovs, method='lanczos', return_all=False):
+    if method == 'arnoldi':
+        T , V = arnoldi(y, ham, opips, spfovs, nvecs=5)
+    else:
+        T , V = lanczos(y, ham, opips, spfovs, nvecs=5)
+    y.A = propagate(V, T, dt)
+    #psiout = propagate(V, T, dt)
+    #if return_all:
+    #    return psiout , T , V
+    #else:
+    #    return psiout

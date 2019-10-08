@@ -1,3 +1,6 @@
+#import os
+#os.environ["OMP_NUM_THREADS"] = "1"
+#os.environ["MKL_NUM_THREADS"] = "1"
 import numpy as np
 import sys
 sys.path.append('/Users/addisonschile/Software/pymctdh')
@@ -5,17 +8,17 @@ import units
 from wavefunction import Wavefunction
 from hamiltonian import Hamiltonian
 from pbasis import PBasis
-from qoperator import QOperator
-from vmfpropagate import vmfpropagate,vmfpropagatejumps
+from propagate import vmfpropagate
 
 if __name__ == "__main__":
-
 
     nel    = 2
     nmodes = 4
     nspfs = np.array([[8, 13, 7, 6],
                      [7, 12, 6, 5]], dtype=int)
-    npbfs = np.array([22, 32, 21, 12])
+    #nspfs = np.array([[21, 30, 20, 11],
+    #                 [21, 30, 20, 11]], dtype=int)
+    npbfs = np.array([22, 32, 21, 12], dtype=int)
 
     pbfs = list()
     pbfs.append( PBasis(['ho', 22, 1.0, 1.0]) )
@@ -38,9 +41,7 @@ if __name__ == "__main__":
     k12   =  0.2012
     k9a1  =  0.1594
     k9a2  =  0.0484
-    gam   =  0.1*0.0367493
 
-    # make hamiltonian
     hterms = []
     hterms.append({'coeff':   -delta, 'units': 'ev', 'elop': 'sz'}) # el only operator
     hterms.append({'coeff': 1.0*w10a, 'units': 'ev', 'modes': 0, 'ops':  'KE'}) # mode 1 terms
@@ -52,41 +53,18 @@ if __name__ == "__main__":
     hterms.append({'coeff':  1.0*w9a, 'units': 'ev', 'modes': 3, 'ops':  'KE'}) # mode 4 terms
     hterms.append({'coeff':  0.5*w9a, 'units': 'ev', 'modes': 3, 'ops': 'q^2'})
     hterms.append({'coeff':    lamda, 'units': 'ev', 'modes': 0, 'elop':  'sx', 'ops': 'q'}) # Peierls copuling
+    #hterms.append({'coeff':    lamda, 'units': 'ev', 'elop':  'sx'}) # Peierls copuling
     hterms.append({'coeff':     k6a1, 'units': 'ev', 'modes': 1, 'elop': '0,0', 'ops': 'q'}) # Holstein copuling mode 2 el 0
     hterms.append({'coeff':     k6a2, 'units': 'ev', 'modes': 1, 'elop': '1,1', 'ops': 'q'}) # Holstein copuling mode 2 el 1
     hterms.append({'coeff':      k11, 'units': 'ev', 'modes': 2, 'elop': '0,0', 'ops': 'q'}) # Holstein copuling mode 3 el 0
     hterms.append({'coeff':      k12, 'units': 'ev', 'modes': 2, 'elop': '1,1', 'ops': 'q'}) # Holstein copuling mode 3 el 1
     hterms.append({'coeff':     k9a1, 'units': 'ev', 'modes': 3, 'elop': '0,0', 'ops': 'q'}) # Holstein copuling mode 4 el 0
     hterms.append({'coeff':     k9a2, 'units': 'ev', 'modes': 3, 'elop': '1,1', 'ops': 'q'}) # Holstein copuling mode 4 el 1
-    hterms.append({'coeff': -gam*0.5j, 'units': 'au', 'modes': 0, 'elop':   '1', 'ops': 'q^2'}) # parameters for effective hamiltonian
-    hterms.append({'coeff': -gam*0.5j, 'units': 'au', 'modes': 1, 'elop':   '1', 'ops': 'q^2'}) # parameters for effective hamiltonian
-    hterms.append({'coeff': -gam*0.5j, 'units': 'au', 'modes': 2, 'elop':   '1', 'ops': 'q^2'}) # parameters for effective hamiltonian
-    hterms.append({'coeff': -gam*0.5j, 'units': 'au', 'modes': 3, 'elop':   '1', 'ops': 'q^2'}) # parameters for effective hamiltonian
+
     ham = Hamiltonian(nmodes, hterms, pbfs=pbfs)
 
-    # make Lindblad operators
-    Ls = []
-    term = {'coeff': np.sqrt(gam), 'units': 'au', 'modes': 0, 'elop': '1', 'ops': 'q'}
-    Ls.append( QOperator(nmodes, term, pbfs=pbfs) )
-    term = {'coeff': np.sqrt(gam), 'units': 'au', 'modes': 1, 'elop': '1', 'ops': 'q'}
-    Ls.append( QOperator(nmodes, term, pbfs=pbfs) )
-    term = {'coeff': np.sqrt(gam), 'units': 'au', 'modes': 2, 'elop': '1', 'ops': 'q'}
-    Ls.append( QOperator(nmodes, term, pbfs=pbfs) )
-    term = {'coeff': np.sqrt(gam), 'units': 'au', 'modes': 3, 'elop': '1', 'ops': 'q'}
-    Ls.append( QOperator(nmodes, term, pbfs=pbfs) )
-    # make Lindblad waiting time operators
-    LdLs = []
-    term = {'coeff': gam, 'units': 'au', 'modes': 0, 'elop': '1', 'ops': 'q^2'}
-    LdLs.append( QOperator(nmodes, term, pbfs=pbfs) )
-    term = {'coeff': gam, 'units': 'au', 'modes': 1, 'elop': '1', 'ops': 'q^2'}
-    LdLs.append( QOperator(nmodes, term, pbfs=pbfs) )
-    term = {'coeff': gam, 'units': 'au', 'modes': 2, 'elop': '1', 'ops': 'q^2'}
-    LdLs.append( QOperator(nmodes, term, pbfs=pbfs) )
-    term = {'coeff': gam, 'units': 'au', 'modes': 3, 'elop': '1', 'ops': 'q^2'}
-    LdLs.append( QOperator(nmodes, term, pbfs=pbfs) )
-
-    dt = 0.1
+    dt = 0.5
     times = np.arange(0.0,120.,dt)*units.convert_to('fs')
+    #times = np.arange(0.0,10.*dt,dt)*units.convert_to('fs')
 
-    wf = vmfpropagatejumps(times, ham, pbfs, Ls, LdLs, wf, 'pyr4_jumps.txt', seed=2, nguess=1000, jump_time_tol=1.e-3)
-    #wf = vmfpropagatejumps(times, ham, pbfs, Ls, LdLs, wf, 'pyr4_jumps.txt')
+    wf = vmfpropagate(times, ham, pbfs, wf, 'pyr4_profile.txt')

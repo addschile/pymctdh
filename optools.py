@@ -1,7 +1,9 @@
 import numpy as np
 from cy.wftools import spf_innerprod,overlap_matrices2,compute_projector
 from functools import lru_cache
-from tensorutils import matelcontract,atensorcontract
+#from tensorutils import matelcontract,atensorcontract
+from cy.tensorutils import matelcontract,atensorcontract
+from copy import deepcopy
 
 def isdiag(op):
     if op == '1':
@@ -197,7 +199,7 @@ def matel(nel,nmodes,nspfs,npbfs,opterms,opips,spfovs,A):
         Aout[alpha] = A_
     return Aout
 
-def act_operator(wf,op,tol=1.e-8,maxiter=100):
+def act_operator(wf,op,pbfs,tol=1.e-8,maxiter=100):
     """
     """
     from wavefunction import Wavefunction
@@ -205,8 +207,8 @@ def act_operator(wf,op,tol=1.e-8,maxiter=100):
     # get wf info
     nel = wf.nel
     nmodes = wf.nmodes
-    nspf = wf.nspf
-    npbf = wf.npbf
+    nspfs = wf.nspfs
+    npbfs = wf.npbfs
     spfstart = wf.spfstart
     spfend = wf.spfend
 
@@ -217,23 +219,27 @@ def act_operator(wf,op,tol=1.e-8,maxiter=100):
     spfs_kp1 = wf.copy('spfs')
 
     # compute action of operator on wf spfs
-    # TODO arguments
-    opspfs = compute_opspfs(op.ops,wf)
-    opips = compute_opips(op.ops,wf,opspfs)
+    opspfs = compute_opspfs(nel,nmodes,nspfs,npbfs,spfstart,
+                            spfend,op.ops,pbfs,wf.spfs)
+    #opspfs = compute_opspfs(op.ops,wf)
+    # now compute the matrices of their inner products
+    opips = compute_opips(nel,nmodes,nspfs,npbfs,spfstart,
+                          spfend,op.ops,opspfs,wf.spfs)
+    #opips = compute_opips(op.ops,wf,opspfs)
     #return opspfs,opips
 
+
     # compute overlap matrices
-    # TODO arguments
-    spfovs = overlap_matrices2(wf,wf)
+    spfovs = overlap_matrices2(nel,nmodes,nspfs,npbfs,spfstart,wf.spfs,wf.spfs)
+    #spfovs = overlap_matrices2(wf,wf)
     #return spfovs
 
     # update initial A tensor
     for alpha in range(nel):
         A_k[alpha] *= 0.0
         for beta in range(nel):
-            # TODO arguments
             newmatelterm(nmodes,alpha,beta,wf.A[beta],A_k[alpha],op.term,opips,spfovs)
-    #return wf_k.A
+    #return A_k 
 
     # perform iterations until convergence is reached
     flag = 1
@@ -246,20 +252,24 @@ def act_operator(wf,op,tol=1.e-8,maxiter=100):
                     ind0 = spfstart[alpha,mode]
                     indf = spfend[alpha,mode]
                     # TODO arguments
-                    spfs_kp1[alpha][ind0:indf] += compute_meanfield_uncorr(alpha,mode,wf,[op.term],opspfs,gen=True)
+                    spfs_kp1[alpha][ind0:indf] += compute_meanfield_uncorr(alpha,mode,[op.term],opspfs,wf.spfs[alpha][ind0:indf],gen=True)
             # gram-schmidt orthogonalize the spfs
-            # TODO arguments
-            wf_kp1.orthonormalize_spfs()
+            spfs_kp1 = wf.orthonormalize_spfs(spfs_kp1)
+            #wf_kp1.orthonormalize_spfs()
         #return wf_kp1
         # update the A tensor coefficients
         # TODO arguments
-        opips = compute_opips(op.ops,wf_kp1,opspfs)
-        spfovs = overlap_matrices2(wf_kp1,wf)
+        opips = compute_opips(nel,nmodes,nspfs,npbfs,spfstart,
+                              spfend,op.ops,opspfs,spfs_kp1)
+        #opips = compute_opips(op.ops,wf_kp1,opspfs)
+        spfovs = overlap_matrices2(nel,nmodes,nspfs,npbfs,spfstart,spfs_kp1,wf.spfs)
+        #spfovs = overlap_matrices2(wf_kp1,wf)
         for alpha in range(nel):
             A_kp1[alpha] *= 0.0
             for beta in range(nel):
                 # TODO arguments
-                newmatelterm(nmodes,alpha,beta,wf.A[beta],wf_kp1.A[alpha],op.term,opips,spfovs)
+                newmatelterm(nmodes,alpha,beta,wf.A[beta],A_kp1[alpha],op.term,opips,spfovs)
+                #newmatelterm(nmodes,alpha,beta,wf.A[beta],wf_kp1.A[alpha],op.term,opips,spfovs)
         # check convergence
         delta = 0.0
         for alpha in range(nel):
@@ -267,8 +277,10 @@ def act_operator(wf,op,tol=1.e-8,maxiter=100):
                 ind0 = spfstart[alpha,mode]
                 indf = spfend[alpha,mode]
                 # compute criteria based on projectors
-                p_k = compute_projector(nspf[alpha,mode],npbf[mode],spfs_k.spfs[alpha][ind0:indf])
-                p_kp1 = compute_projector(nspf[alpha,mode],npbf[mode],spfs_kp1.spfs[alpha][ind0:indf])
+                p_k = compute_projector(nspfs[alpha,mode],npbfs[mode],spfs_k[alpha][ind0:indf])
+                #p_k = compute_projector(nspf[alpha,mode],npbf[mode],spfs_k.spfs[alpha][ind0:indf])
+                p_kp1 = compute_projector(nspfs[alpha,mode],npbfs[mode],spfs_kp1[alpha][ind0:indf])
+                #p_kp1 = compute_projector(nspf[alpha,mode],npbf[mode],spfs_kp1.spfs[alpha][ind0:indf])
                 delta += np.linalg.norm(p_kp1-p_k)
         if delta < tol:
             flag = 0
@@ -293,17 +305,21 @@ def compute_expect(op,wf,pbfs):
     nel = wf.nel
     nspfs = wf.nspfs
     npbfs = wf.npbfs
+    spfstart = wf.spfstart
+    spfend = wf.spfend
 
     modes = op.term['modes']
     mode = op.term['modes'][0]
     _op = op.term['ops'][0]
     # make matrix of spf inner products
-    opspfs,opips = precompute_ops(nmodes,nel,nspfs,npbfs,spfstart,spfend,op.ops,pbfs,wf.spfs)
+    opspfs,opips = precompute_ops(nel,nmodes,nspfs,npbfs,spfstart,spfend,op.ops,pbfs,wf.spfs)
     # contract (A*)xA with opips
     expect = 0.0
     for alpha in range(wf.nel):
-        Asum = atensorcontract(modes, wf.A[alpha])
-        expect += np.einsum('ij,ij',Asum,opips[alpha][0][mode][_op]).real
+        Asum = atensorcontract(nmodes, modes, wf.A[alpha])
+        #Asum = atensorcontract(modes, wf.A[alpha])
+        expect += np.tensordot(Asum,opips[alpha][0][mode][_op],axes=[[0,1],[0,1]]).real
+        #expect += np.einsum('ij,ij',Asum,opips[alpha][0][mode][_op]).real
     return expect
 
 def jump_probs(LdLs,wf,pbfs):
@@ -324,11 +340,13 @@ def jump(rand,Ls,LdLs,wf,pbfs):
     p *= rand
     for count in range(len(Ls)):
         if p <= np.sum(p_n[:count+1]):
-            act_operator(wf,Ls[count]) , count
-            return
+            act_operator(wf,Ls[count],pbfs)
+            return count
 
 if __name__ == "__main__":
 
+    from time import time
+    from pbasis import PBasis
     from wavefunction import Wavefunction
     from hamiltonian import Hamiltonian
     from qoperator import QOperator
@@ -337,9 +355,9 @@ if __name__ == "__main__":
 
     nel    = 2
     nmodes = 4
-    nspf = np.array([[8, 13, 7, 6],
+    nspfs = np.array([[8, 13, 7, 6],
                      [7, 12, 6, 5]], dtype=int)
-    npbf = np.array([22, 32, 21, 12], dtype=int)
+    npbfs = np.array([22, 32, 21, 12], dtype=int)
 
     pbfs = list()
     pbfs.append( PBasis(['ho', 22, 1.0, 1.0]) )
@@ -347,9 +365,8 @@ if __name__ == "__main__":
     pbfs.append( PBasis(['ho', 21, 1.0, 1.0]) )
     pbfs.append( PBasis(['ho', 12, 1.0, 1.0]) )
 
-    wf = Wavefunction(nel, nmodes, nspf, npbf)
+    wf = Wavefunction(nel, nmodes, nspfs, npbfs)
     wf.generate_ic(1)
-    wf.overlap_matrices()
 
     w10a  =  0.09357
     w6a   =  0.0740
@@ -382,17 +399,28 @@ if __name__ == "__main__":
     hterms.append({'coeff':     k9a1, 'units': 'ev', 'modes': 3, 'elop': '0,0', 'ops': 'q'}) # Holstein copuling mode 4 el 0
     hterms.append({'coeff':     k9a2, 'units': 'ev', 'modes': 3, 'elop': '1,1', 'ops': 'q'}) # Holstein copuling mode 4 el 1
 
-    ham = Hamiltonian(nmodes, hterms, wf=wf)
+    ham = Hamiltonian(nmodes, hterms, pbfs=pbfs)
     #print(ham.ops)
-    #for i in range(nmodes):
-    #    print(wf.pbfs[i].ops.keys())
 
     # precompute action of operators and inner products
     print('precompute_ops')
-    opspfs,opips = precompute_ops(ham.ops, wf)
+    btime = time()
+    opspfs,opips = precompute_ops(nel,nmodes,nspfs,npbfs,wf.spfstart,wf.spfend,ham.ops,pbfs,wf.spfs)
+    print(time()-btime)
     #print(opips)
 
-    term = {'coeff': 0.01, 'units': 'ev', 'modes': 0, 'ops': 'q'}
+    print('opspfs')
+    btime = time()
+    opspfs = compute_opspfs(nel,nmodes,nspfs,npbfs,wf.spfstart,wf.spfend,ham.ops,pbfs,wf.spfs)
+    print(time()-btime)
+    #print(opspfs)
+
+    print('opips')
+    btime = time()
+    opips = compute_opips(nel,nmodes,nspfs,npbfs,wf.spfstart,wf.spfend,ham.ops,opspfs,wf.spfs)
+    print(time()-btime)
+
+    #term = {'coeff': 0.01, 'units': 'ev', 'modes': 0, 'ops': 'q'}
     #print('with hamiltonian first')
     #ham = Hamiltonian(nmodes, [term.copy()], wf=wf)
     #opspfs,opips = precompute_ops(ham.ops, wf)
@@ -413,7 +441,7 @@ if __name__ == "__main__":
     #        indf = wf.spfend[alpha,mode]
     #        wf_kp1.spfs[alpha][ind0:indf] += compute_meanfield_uncorr(alpha,mode,wf,ham.hterms,opspfs,gen=True)
 
-    op = QOperator(nmodes, term, wf=wf)
+    #op = QOperator(nmodes, term, wf=wf)
     #for i in range(nmodes):
     #    print(wf.pbfs[i].ops.keys())
 
@@ -462,25 +490,25 @@ if __name__ == "__main__":
     #for alpha in range(nel):
     #    print(np.allclose(wf_kp1.spfs[alpha],new_wf.spfs[alpha]))
 
-    # act this new operator on the wavefunction
-    print('act op')
-    new_wf = act_operator(wf,op)
+    ## act this new operator on the wavefunction
+    #print('act op')
+    #new_wf = act_operator(wf,op)
+    ##for i in range(nel):
+    ##    print(new_wf.spfs[i])
+    ## compute the energy of this new wavefunction
+    #wf.overlap_matrices()
+    #print('precompute_ops')
+    #opspfs,opips = precompute_ops(ham.ops, wf)
+    #A = eom_coeffs(wf, ham, opips)
+    #energy = 0.0
     #for i in range(nel):
-    #    print(new_wf.spfs[i])
-    # compute the energy of this new wavefunction
-    wf.overlap_matrices()
-    print('precompute_ops')
-    opspfs,opips = precompute_ops(ham.ops, wf)
-    A = eom_coeffs(wf, ham, opips)
-    energy = 0.0
-    for i in range(nel):
-        energy += (1.j*np.sum(wf.A[i].conj()*A[i])).real
-    print(energy/0.0367493)
-    new_wf.overlap_matrices()
-    print('precompute_ops')
-    opspfs,opips = precompute_ops(ham.ops, new_wf)
-    A = eom_coeffs(new_wf, ham, opips)
-    energy = 0.0
-    for i in range(nel):
-        energy += (1.j*np.sum(new_wf.A[i].conj()*A[i])).real
-    print(energy/0.0367493)
+    #    energy += (1.j*np.sum(wf.A[i].conj()*A[i])).real
+    #print(energy/0.0367493)
+    #new_wf.overlap_matrices()
+    #print('precompute_ops')
+    #opspfs,opips = precompute_ops(ham.ops, new_wf)
+    #A = eom_coeffs(new_wf, ham, opips)
+    #energy = 0.0
+    #for i in range(nel):
+    #    energy += (1.j*np.sum(new_wf.A[i].conj()*A[i])).real
+    #print(energy/0.0367493)

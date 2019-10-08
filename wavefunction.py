@@ -16,7 +16,20 @@ class Wavefunction(object):
         self.nel    = nel
         self.nmodes = nmodes
         # get number of spfs for each state and mode
-        self.nspfs = nspfs.astype(int)
+        self.nspfs  = nspfs
+        #if isinstance(nspfs, list)
+        #    self.nspfs = np.zeros(nmodes, dtype=int)
+        #    for i in range(len(nspfs)):
+        #        if isinstance(nspfs[i], list):
+        #            for j in range(len(nspfs[i])):
+        #                if j==0:
+        #                    self.nspfs[i] = int(nspfs[i][j])
+        #                else:
+        #                    self.nspfs[i] *= int(nspfs[i][j])
+        #        else:
+        #            self.nspfs[i] = int(nspfs[i])
+        #else:
+        #    self.nspfs = nspfs.astype(int)
         # get number of primitive basis functions for ith mode
         self.npbfs = npbfs.astype(int)
 
@@ -28,14 +41,6 @@ class Wavefunction(object):
                 for j in range(self.nmodes):
                     Adim   += (self.nspfs[i,j],)
                 self.A[i] = np.zeros(Adim, dtype=complex)
-            #self.spfstart = np.zeros((self.nel,self.nmodes), dtype=int)
-            #self.spfend   = np.zeros((self.nel,self.nmodes), dtype=int)
-            #for i in range(self.nel):
-            #    ind = 0
-            #    for j in range(self.nmodes):
-            #        self.spfstart[i,j] = ind
-            #        ind += self.nspfs[i,j]*self.npbfs[j]
-            #        self.spfend[i,j] = ind
         else:
             self.A = deepcopy(A)
 
@@ -142,19 +147,28 @@ class Wavefunction(object):
             raise ValueError("Single-particle functions have wrong shape")
         return spfsout
 
-    def orthonormalize_spfs(self, method='gram-schmidt'):
+    def orthonormalize_spfs(self, spfsin=None, method='gram-schmidt'):
         """Orthonormalize the single-particle functions on each electronic 
         state.
         """
+        if spfsin!=None:
+            spfsout = deepcopy(spfsin)
         for i in range(self.nel):
             for j in range(self.nmodes):
                 nspf = self.nspfs[i,j]
                 npbf = self.npbfs[j]
                 ind0 = self.spfstart[i,j]
                 indf = self.spfend[i,j]
-                spfs = self.reshape_spfs(npbf,nspf,self.spfs[i][ind0:indf])
-                spfs = LA.orthonormalize(nspf, spfs, method=method)
-                self.spfs[i][ind0:indf] = self.reshape_spfs(npbf,nspfs,spfs)
+                if spfsin==None:
+                    spfs = self.reshape_spfs(npbf,nspf,self.spfs[i][ind0:indf])
+                    spfs = LA.orthonormalize(nspf, spfs, method=method)
+                    self.spfs[i][ind0:indf] = self.reshape_spfs(npbf,nspf,spfs)
+                else:
+                    spfs = self.reshape_spfs(npbf,nspf,spfsin[i][ind0:indf])
+                    spfs = LA.orthonormalize(nspf, spfs, method=method)
+                    spfsout[i][ind0:indf] = self.reshape_spfs(npbf,nspf,spfs)
+        if spfsin!=None:
+            return spfsout
     
     # TODO need to change this so it's compatible with new stuff
     #def compute_energy(self, inp):

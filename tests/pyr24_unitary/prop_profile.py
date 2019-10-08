@@ -1,6 +1,3 @@
-#import os
-#os.environ["OMP_NUM_THREADS"] = "1"
-#os.environ["MKL_NUM_THREADS"] = "1"
 import numpy as np
 import sys
 sys.path.append('/Users/addisonschile/Software/pymctdh')
@@ -13,18 +10,13 @@ from vmfpropagate import vmfpropagate
 if __name__ == "__main__":
 
     nel    = 2
-    nmodes = 4
-    nspfs = np.array([[8, 11, 5, 4],
-                     [7, 11, 5, 4]], dtype=int)
-    #nspfs = np.array([[21, 30, 20, 11],
-    #                 [21, 30, 20, 11]], dtype=int)
-    npbfs = np.array([22, 32, 21, 12], dtype=int)
-
+    nmodes = 7
+    nspfs = np.array([[19, 13, 10, 8, 6, 6, 5],
+                      [11,  8,  6, 4, 4, 4, 4]], dtype=int)
+    npbfs = np.array([[22,32],[21,12],[6,6,6,6],[6,6,6,6],[6,6,6,6],[6,6,6,6],[6,6,6,6]], dtype=int)
     pbfs = list()
-    pbfs.append( PBasis(['ho', 22, 1.0, 1.0]) )
-    pbfs.append( PBasis(['ho', 32, 1.0, 1.0]) )
-    pbfs.append( PBasis(['ho', 21, 1.0, 1.0]) )
-    pbfs.append( PBasis(['ho', 12, 1.0, 1.0]) )
+    for i in range(len(npbfs)):
+        pbfs.append( PBasis(['ho', npbfs[i], 1.0, 1.0]) )
 
     wf = Wavefunction(nel, nmodes, nspfs, npbfs)
     wf.generate_ic(1)

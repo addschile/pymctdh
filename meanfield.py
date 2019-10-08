@@ -1,20 +1,22 @@
 import numpy as np
 from optools import compute_el_mes
 from cy.wftools import spf_innerprod,multAtens
-from tensorutils import atensorcontract,ahtensorcontract
+#from tensorutils import atensorcontract,ahtensorcontract
+from cy.tensorutils import atensorcontract,ahtensorcontract
 
-def act_meanfield(alpha, beta, mode, mf, spfs):
+def act_meanfield(nspf_l, nspf_r, npbf, mode, mfs, mf_c, opspfs, spfs):
     """Computes the action of the meanfield operators on the spfs from stored
     meanfield operators. This is only used in the CMF integration scheme.
     """
-    # TODO
-    # this needs to be tensorialized because spfs will be too big
-    # mf is nspf x nspf
-    # spfs is (nspf*npbf) x 1
-    return np.dot(mf[alpha][beta][mode], spfs)
+    # apply things that don't need underlying pbf operation
+    spfsout = multAtens(nspf_l,nspf_r,npbf,mfs,spfs)
+    # apply things that do need underlying pbf operation
+    ops = mf_c.keys()
+    for op in ops:
+        spfsout += multAtens(nspf_l,nspf_r,npbf,mf_c[op],opspfs[op])
+    return spfsout
 
-def compute_meanfield_uncorr(alpha, mode, hterms, opspfs, spfs, storemf=False, 
-                             gen=False):
+def compute_meanfield_uncorr(alpha, mode, hterms, opspfs, spfs, gen=False):
     """Computes the meanfield operators for uncorrelated hamiltonian terms.
     Input
     -----
@@ -84,7 +86,6 @@ def compute_meanfield_corr(nmodes, nspfs, npbfs, spfstart, spfend, alpha, beta,
     3) contract over the contracted A tensor and the matrix elements of the modes
     4) act the meanfield operator on the vector of spfs
     """
-
     spfout = np.zeros_like(spfs[alpha], dtype=complex)
     for mode in range(nmodes):
         ind0    = spfstart[alpha,mode]
@@ -104,12 +105,12 @@ def compute_meanfield_corr(nmodes, nspfs, npbfs, spfstart, spfend, alpha, beta,
                         hmodes += [mode]
                     # contract over all other modes not involved in the term
                     if alpha == beta:
-                        Asum = atensorcontract(hmodes, A[beta])
+                        Asum = atensorcontract(nmodes, hmodes, A[beta])
                     elif alpha < beta:
-                        Asum = atensorcontract(hmodes, A[alpha], A[beta], 
+                        Asum = atensorcontract(nmodes, hmodes, A[alpha], A[beta], 
                                                spfovs=spfovs[alpha][beta-alpha-1])
                     else:
-                        Asum = atensorcontract(hmodes, A[alpha], A[beta], 
+                        Asum = atensorcontract(nmodes, hmodes, A[alpha], A[beta], 
                                                spfovs=spfovs[beta][alpha-beta-1],
                                                spfovsconj=True)
                     # contract over inner products of ham terms of other modes
@@ -126,7 +127,7 @@ def compute_meanfield_corr(nmodes, nspfs, npbfs, spfstart, spfend, alpha, beta,
                                 order = 0
                             else:
                                 order = 1
-                            Asum = ahtensorcontract(Asum,opsum,order,conj=conj)
+                            Asum = ahtensorcontract(nmodes,Asum,opsum,order,conj=conj)
                         elif hmode == mode:
                             modeop = hterm['ops'][num]
                     if mode in hterm['modes']:
@@ -140,12 +141,12 @@ def compute_meanfield_corr(nmodes, nspfs, npbfs, spfstart, spfend, alpha, beta,
                 else: # purely electronic operator
                     # contract over all other modes
                     if alpha == beta:
-                        Asum = atensorcontract([mode], A[beta])
+                        Asum = atensorcontract(nmodes, [mode], A[beta])
                     elif alpha < beta:
-                        Asum = atensorcontract([mode], A[alpha], A[beta],
+                        Asum = atensorcontract(nmodes, [mode], A[alpha], A[beta],
                                                spfovs=spfovs[alpha][beta-alpha-1])
                     else:
-                        Asum = atensorcontract([mode], A[alpha], A[beta],
+                        Asum = atensorcontract(nmodes, [mode], A[alpha], A[beta],
                                                spfovs=spfovs[beta][alpha-beta-1],
                                                spfovsconj=True)
                     ind0 = spfstart[beta,mode]
@@ -153,11 +154,83 @@ def compute_meanfield_corr(nmodes, nspfs, npbfs, spfstart, spfend, alpha, beta,
                     spfout_ += hel*multAtens(nspf_l,nspf_r,npbf,Asum,
                                              spfs[beta][ind0:indf])
     return spfout
-    # TODO how to store meanfield operators
-    #if storemf:
-    #    return spfout , mf ops
-    #else:
-    #    return spfout
+
+def compute_meanfield_mats(nel, nmodes, nspfs, npbfs, spfstart, spfend, hterms,
+                           opspfs, opips, spfovs, A, spfs):
+    """
+    """
+    mfs = []
+    for alpha in range(nel):
+        mfs_a = []
+        for beta in range(nel):
+            mfs_b = []
+            for mode in range(nmodes):
+                ind0    = spfstart[alpha,mode]
+                indf    = spfend[alpha,mode]
+                nspf_l  = nspfs[alpha,mode]
+                nspf_r  = nspfs[beta,mode]
+                npbf    = npbfs[mode]
+                mf_mat  = np.zeros((nspf_l,nspf_r), dtype=complex)
+                mf_mat_c = {}
+                for hterm in hterms:
+                    # compute electronic matrix element
+                    hel = compute_el_mes(alpha,beta,hterm['elop'])
+                    if hel != 0.0:
+                        hel *= hterm['coeff']
+                        if 'modes' in hterm:
+                            hmodes = hterm['modes'].copy()
+                            if mode not in hmodes:
+                                hmodes += [mode]
+                            # contract over all other modes not involved in the term
+                            if alpha == beta:
+                                Asum = atensorcontract(nmodes, hmodes, A[beta])
+                            elif alpha < beta:
+                                Asum = atensorcontract(nmodes, hmodes, A[alpha], A[beta], 
+                                                       spfovs=spfovs[alpha][beta-alpha-1])
+                            else:
+                                Asum = atensorcontract(nmodes, hmodes, A[alpha], A[beta], 
+                                                       spfovs=spfovs[beta][alpha-beta-1],
+                                                       spfovsconj=True)
+                            # contract over inner products of ham terms of other modes
+                            for num,hmode in enumerate(hterm['modes']):
+                                if not hmode == mode:
+                                    op = hterm['ops'][num]
+                                    if alpha <= beta:
+                                        opsum = opips[alpha][beta-alpha][hmode][op]
+                                        conj = False
+                                    else:
+                                        opsum = opips[beta][alpha-beta][hmode][op].conj()
+                                        conj = True
+                                    if hmode < mode:
+                                        order = 0
+                                    else:
+                                        order = 1
+                                    Asum = ahtensorcontract(nmodes,Asum,opsum,order,conj=conj)
+                                elif hmode == mode:
+                                    modeop = hterm['ops'][num]
+                            if mode in hterm['modes']:
+                                if not modeop in mf_mat_c:
+                                    mf_mat_c[modeop] = hel*Asum
+                                else:
+                                    mf_mat_c[modeop] += hel*Asum
+                            else:
+                                mf_mat += hel*Asum
+                        else: # purely electronic operator
+                            # contract over all other modes
+                            if alpha == beta:
+                                Asum = atensorcontract(nmodes, [mode], A[beta])
+                            elif alpha < beta:
+                                Asum = atensorcontract(nmodes, [mode], A[alpha], A[beta],
+                                                       spfovs=spfovs[alpha][beta-alpha-1])
+                            else:
+                                Asum = atensorcontract(nmodes, [mode], A[alpha], A[beta],
+                                                       spfovs=spfovs[beta][alpha-beta-1],
+                                                       spfovsconj=True)
+                            mf_mat += hel*Asum
+                mfs_b.append( [mf_mat,mf_mat_c] )
+            mfs_a.append( mfs_b )
+        mfs.append( mfs_a )
+    return mfs 
 
 if __name__ == "__main__":
 

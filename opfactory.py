@@ -25,6 +25,7 @@ def opdag(op):
     elif op == 'n':
         opout = 'n'
     else:
+        print(op)
         raise ValueError("Not a valid operator for HO basis")
     return opout
 
@@ -34,7 +35,7 @@ def make_ho_ops(params,op):
     """
     npbf   = params['npbf']
     mass   = params['mass']
-    omegas = params['omega']
+    omega = params['omega']
     if '^' in op:
         _op = op.split('^')
         opout = make_ho_ops(params,_op[0])
@@ -45,6 +46,8 @@ def make_ho_ops(params,op):
         opout = make_ho_ops(params,_op[0])
         for i in range(len(_op)-1):
             opout = np.dot(opout,make_ho_ops(params,_op[i+1]))
+    elif op == '1':
+        opout = np.eye(npbf)
     elif op == 'adag':
         opout = np.zeros((npbf,)*2)
         for i in range(npbf-1):
@@ -66,11 +69,46 @@ def make_ho_ops(params,op):
     elif op == 'KE':
         opout = make_ho_ops(params,'p')
         opout = 0.5*np.dot(opout,opout)
+        opout = opout.real#.astype(float)
     elif op == 'n':
         opout = make_ho_ops(params,'adag')
         opout = np.dot(opout,make_ho_ops(params,'a'))
     else:
+        print(op)
         raise ValueError("Not a valid operator for HO basis")
+    return opout
+
+def make_ho_ops_combined(params,op):
+    """
+    """
+    npbf   = params['npbf']
+    mass   = params['mass']
+    omegas = params['omega']
+    if '(' and ')' in op:
+        ops = op.split(')*(')
+        for i in range(len(ops)):
+            ops[i] = ops[i].split('(')[-1]
+            ops[i] = ops[i].split(')')[0]
+            ops[i] = ops[i].split('*')
+        for i in range(len(ops)):
+            par = {'npbf':npbf[i], 'mass':mass[i], 'omega':omegas[i]}
+            for j in range(len(ops[i])):
+                if j==0:
+                    opout_ = make_ho_ops(par,ops[i][j])
+                else:
+                    opout_ = np.dot(opout_,make_ho_ops(par,ops[i][j]))
+            if i==0:
+                opout = opout_
+            else:
+                opout = np.kron(opout, opout_)
+    else:
+        ops = op.split('*')
+        for i in range(len(ops)):
+            par = {'npbf':npbf[i], 'mass':mass, 'omega':omegas[i]}
+            if i==0:
+                opout = make_ho_ops(par,ops[i])
+            else:
+                opout = np.kron(opout,make_ho_ops(par,ops[i]))
     return opout
 
 def make_sinc_ops(params,op):

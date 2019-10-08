@@ -3,6 +3,24 @@ cimport numpy as cnp
 cimport cython
 cimport scipy.linalg.cython_blas as blas
 
+def norm2(int nel,cnp.ndarray A):
+    """
+    """
+    cdef double nrm = 0.0
+    for i in range(nel):
+        nrm += np.sum(A[i].conj()*A[i]).real
+    return nrm
+
+def norm(int nel,cnp.ndarray A):
+    cdef double nrm = norm2(nel,A)
+    return np.sqrt(nrm)
+
+def inner(int nel,cnp.ndarray A1,cnp.ndarray A2):
+    innr = 0.0j
+    for i in range(nel):
+        innr += np.sum(A1[i].conj()*A2[i])
+    return innr
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef void _spf_innerprod(int nspf_l,int nspf_r,int npbf,complex[::1] spfs1,complex[::1] spfs2,complex[:,::1] spfsout) nogil:
@@ -58,18 +76,16 @@ def multAtens(int nspf_l,int nspf_r,int npbf,cnp.ndarray[complex, ndim=2] A,cnp.
     _multAtens(nspf_l,nspf_r,npbf,A,spfs,spfsout)
     return spfsout
 
-def compute_density_matrix(int nspf,int alpha,int mode,cnp.ndarray A):
+def compute_density_matrix(int nspf,int alpha,int nmodes,int mode,cnp.ndarray A):
     """Computes density matrix for given mode and electronic states.
     """
-    cdef int i,j
+    cdef int i
     cdef cnp.ndarray[complex, ndim=2, mode='c'] rho = np.zeros((nspf,)*2, dtype=complex)
-    cdef tuple idxi,idxj
-    for i in range(nspf):
-        for j in range(nspf):
-            idxi = (slice(None),)*mode + (i,...)
-            idxj = (slice(None),)*mode + (j,...)
-            rho[i,j] = np.sum(A[idxi].conj()*A[idxj])
-    return rho
+    cdef list modes = []
+    for i in range(nmodes):
+        if i!=mode:
+            modes.append(i)
+    return np.tensordot(A.conj(),A,axes=[modes,modes])
 
 def invert_density_matrix(cnp.ndarray[complex, ndim=2, mode='c'] rho, regularization='default', eps=1.e-8):
     """Inverts given density matrix using standard regularization method.
@@ -174,7 +190,7 @@ def overlap_matrices(int nel,int nmodes,cnp.ndarray[long, ndim=2, mode='c'] nspf
         spfovs.append( spfovs_a )
     return spfovs
 
-def overlap_matrices2(int nel,int nmodes,cnp.ndarray[int, ndim=2, mode='c'] nspfs,cnp.ndarray[int, ndim=1, mode='c'] npbfs,cnp.ndarray[int, ndim=2, mode='c'] spfstart,cnp.ndarray[object, ndim=2, mode='c'] spfs1,cnp.ndarray[object, ndim=2, mode='c'] spfs2):
+def overlap_matrices2(int nel,int nmodes,cnp.ndarray[long, ndim=2, mode='c'] nspfs,cnp.ndarray[long, ndim=1, mode='c'] npbfs,cnp.ndarray[long, ndim=2, mode='c'] spfstart,cnp.ndarray[object, ndim=1, mode='c'] spfs1,cnp.ndarray[object, ndim=1, mode='c'] spfs2):
     """Computes overlap matrices between spfs of two wavefunctions
     """
     cdef int alpha,beta,mode
