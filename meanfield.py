@@ -1,81 +1,87 @@
 import numpy as np
 from optools import compute_el_mes
 from cy.wftools import spf_innerprod,multAtens
-#from tensorutils import atensorcontract,ahtensorcontract
 from cy.tensorutils import atensorcontract,ahtensorcontract
 
-def act_meanfield(nspf_l, nspf_r, npbf, mode, mfs, mf_c, opspfs, spfs):
-    """Computes the action of the meanfield operators on the spfs from stored
-    meanfield operators. This is only used in the CMF integration scheme.
+# TODO this needs to be generalized
+def compute_meanfield_uncorr_op(nel, nmodes, nspf, npbf, spfstart, spfend, 
+                                opterm, uopspfs, spfs, spfsout):
     """
-    # apply things that don't need underlying pbf operation
-    spfsout = multAtens(nspf_l,nspf_r,npbf,mfs,spfs)
-    # apply things that do need underlying pbf operation
-    ops = mf_c.keys()
-    for op in ops:
-        spfsout += multAtens(nspf_l,nspf_r,npbf,mf_c[op],opspfs[op])
-    return spfsout
+    """
+    for alpha in range(nel):
+        spf    = spfs[alpha]
+        spfout = spfsout[alpha]
+        opspfs = uopspfs[alpha]
+        if 'modes' in opterm:
+            for mode in range(nmodes):
+                ind0 = spfstart[alpha,mode]
+                indf = spfend[alpha,mode]
+                if mode == opterm['modes'][0]:
+                    spfout[ind0:indf] += opspfs[ind0:indf]
+                else:
+                    spfout[ind0:indf] += spf[ind0:indf]
+        else:
+            spfout += opterm['coeff']*spfs
 
-def compute_meanfield_uncorr(alpha, mode, hterms, opspfs, spfs, gen=False):
+def compute_meanfield_uncorr(nel, nmodes, spfstart, spfend, uopspfs, spfs, spfsout):
     """Computes the meanfield operators for uncorrelated hamiltonian terms.
     Input
     -----
-    alpha - int, the bra electronic state
-    mode  - int, the mode being acted on
-    hterms - list of dictionaries, the correlated hamiltonian terms.
-    opspfs - list, the list/dictionary structure that stores the hamiltonian
-             terms acting on each spf
-    spfs - Wavefunction class, the wavefunction for which mf ops are being 
-         computed and acted
-    storemf - bool, determines whether or not to store meanfield operators,
-              used in cmf integration scheme (not implemented tho)
-    gen - bool,
-
-    Output
-    ------
-    spfout - np.ndarray, output of meanfield operators acting on input spf
-    mfops - (not implemented) meanfield operators, only returned in cmf scheme
+    nel -
+    nmodes -
+    uopspfs -
+    spfs -
+    spfsout -
     """
-    # get wf info
-    spfout = np.zeros_like(spfs, dtype=complex)
-    for hterm in hterms:
-        # compute electronic matrix element
-        hel = compute_el_mes(alpha,alpha,hterm['elop'])
-        if hel != 0.0:
-            hel *= hterm['coeff']
-            if 'modes' in hterm:
-                if mode == hterm['modes'][0]:
-                    spfout += hel*opspfs[alpha][mode][hterm['ops'][0]]
-                else:
-                    if gen:
-                        spfout += spfs
-            else:
-                spfout += hel*spfs
-    return spfout
+    for alpha in range(nel):
+        for mode in range(nmodes):
+            ind0 = spfstart[alpha,mode]
+            indf = spfend[alpha,mode]
+            spfsout[alpha][ind0:indf] += uopspfs[alpha][ind0:indf]
 
-def compute_meanfield_corr(nmodes, nspfs, npbfs, spfstart, spfend, alpha, beta, 
-                           hterms, opspfs, opips, spfovs, A, spfs, storemf=False):
+# TODO incorporate this into _uncorr function
+def compute_meanfield_eluncorr(nel, nmodes, spfstart, spfend, huelterms, spfs, spfsout):
+    """Computes the meanfield operators for uncorrelated hamiltonian terms.
+    Input
+    -----
+    nel -
+    nmodes -
+    uopspfs -
+    spfs -
+    spfsout -
+    """
+    for hterm in huelterms:
+        elop  = hterm['elop']
+        coeff = hterm['coeff']
+        for alpha in range(nel):
+            spfout = spfsout[alpha]
+            spf = spfs[alpha]
+            mel = compute_el_mes(alpha,alpha,elop)
+            if mel != 0.0:
+                for mode in range(nmodes):
+                    ind0 = spfstart[alpha,mode]
+                    indf = spfend[alpha,mode]
+                    spfout[ind0:indf] += mel*coeff*spf[ind0:indf]
+
+def compute_meanfield_corr(nel, nmodes, nspfs, npbfs, spfstart, spfend, copspfs,
+                           copips, spfovs, A, spfs, spfsout):
     """Computes the meanfield operators and their action on the spfs.
     Meanfield operators are stored if using the CMF integrator.
 
     Input
     -----
-    alpha - int, the bra electronic state
-    beta  - int, the ket electronic state
-    wf - Wavefunction class, the wavefunction for which mf ops are being 
-         computed and acted
-    ham - Hamiltonian class, the hamiltonian of the system
-    opspfs - list, the list/dictionary structure that stores the hamiltonian
-             terms acting on each spf
-    opips - list, the list/dictionary structure that stores the inner products
-            of the hamiltonian terms for each spf
-    storemf - bool, determines whether or not to store meanfield operators,
-              used in cmf integration scheme (not implemented tho)
-
-    Output
-    ------
+    nel -
+    nmodes -
+    nspfs
+    npbfs
+    spfstart
+    spfend
+    copspfs
+    copips
+    spfovs
+    A
+    spfs
     spfout - np.ndarray, output of meanfield operators acting on input spf
-    mfops - (not implemented) meanfield operators, only returned in cmf scheme
 
     Notes
     -----
@@ -86,102 +92,33 @@ def compute_meanfield_corr(nmodes, nspfs, npbfs, spfstart, spfend, alpha, beta,
     3) contract over the contracted A tensor and the matrix elements of the modes
     4) act the meanfield operator on the vector of spfs
     """
-    spfout = np.zeros_like(spfs[alpha], dtype=complex)
-    for mode in range(nmodes):
-        ind0    = spfstart[alpha,mode]
-        indf    = spfend[alpha,mode]
-        nspf_l  = nspfs[alpha,mode]
-        nspf_r  = nspfs[beta,mode]
-        npbf    = npbfs[mode]
-        spfout_ = spfout[ind0:indf]
-        for hterm in hterms:
-            # compute electronic matrix element
-            hel = compute_el_mes(alpha,beta,hterm['elop'])
-            if hel != 0.0:
-                hel *= hterm['coeff']
-                if 'modes' in hterm:
-                    hmodes = hterm['modes'].copy()
-                    if mode not in hmodes:
-                        hmodes += [mode]
-                    # contract over all other modes not involved in the term
-                    if alpha == beta:
-                        Asum = atensorcontract(nmodes, hmodes, A[beta])
-                    elif alpha < beta:
-                        Asum = atensorcontract(nmodes, hmodes, A[alpha], A[beta], 
-                                               spfovs=spfovs[alpha][beta-alpha-1])
-                    else:
-                        Asum = atensorcontract(nmodes, hmodes, A[alpha], A[beta], 
-                                               spfovs=spfovs[beta][alpha-beta-1],
-                                               spfovsconj=True)
-                    # contract over inner products of ham terms of other modes
-                    for num,hmode in enumerate(hterm['modes']):
-                        if not hmode == mode:
-                            op = hterm['ops'][num]
-                            if alpha <= beta:
-                                opsum = opips[alpha][beta-alpha][hmode][op]
-                                conj = False
-                            else:
-                                opsum = opips[beta][alpha-beta][hmode][op].conj()
-                                conj = True
-                            if hmode < mode:
-                                order = 0
-                            else:
-                                order = 1
-                            Asum = ahtensorcontract(nmodes,Asum,opsum,order,conj=conj)
-                        elif hmode == mode:
-                            modeop = hterm['ops'][num]
-                    if mode in hterm['modes']:
-                        spfout_ += hel*multAtens(nspf_l,nspf_r,npbf,Asum,
-                                                 opspfs[beta][mode][modeop])
-                    else:
-                        ind0 = spfstart[beta,mode]
-                        indf = spfend[beta,mode]
-                        spfout_ += hel*multAtens(nspf_l,nspf_r,npbf,Asum,
-                                                 spfs[beta][ind0:indf])
-                else: # purely electronic operator
-                    # contract over all other modes
-                    if alpha == beta:
-                        Asum = atensorcontract(nmodes, [mode], A[beta])
-                    elif alpha < beta:
-                        Asum = atensorcontract(nmodes, [mode], A[alpha], A[beta],
-                                               spfovs=spfovs[alpha][beta-alpha-1])
-                    else:
-                        Asum = atensorcontract(nmodes, [mode], A[alpha], A[beta],
-                                               spfovs=spfovs[beta][alpha-beta-1],
-                                               spfovsconj=True)
-                    ind0 = spfstart[beta,mode]
-                    indf = spfend[beta,mode]
-                    spfout_ += hel*multAtens(nspf_l,nspf_r,npbf,Asum,
-                                             spfs[beta][ind0:indf])
-    return spfout
-
-def compute_meanfield_mats(nel, nmodes, nspfs, npbfs, spfstart, spfend, hterms,
-                           opspfs, opips, spfovs, A, spfs):
-    """
-    """
-    mfs = []
-    for alpha in range(nel):
-        mfs_a = []
-        for beta in range(nel):
-            mfs_b = []
-            for mode in range(nmodes):
-                ind0    = spfstart[alpha,mode]
-                indf    = spfend[alpha,mode]
-                nspf_l  = nspfs[alpha,mode]
-                nspf_r  = nspfs[beta,mode]
-                npbf    = npbfs[mode]
-                mf_mat  = np.zeros((nspf_l,nspf_r), dtype=complex)
-                mf_mat_c = {}
-                for hterm in hterms:
-                    # compute electronic matrix element
-                    hel = compute_el_mes(alpha,beta,hterm['elop'])
-                    if hel != 0.0:
-                        hel *= hterm['coeff']
-                        if 'modes' in hterm:
-                            hmodes = hterm['modes'].copy()
-                            if mode not in hmodes:
-                                hmodes += [mode]
-                            # contract over all other modes not involved in the term
+    # loop over the correlated terms
+    for i,cip in enumerate(copips):
+        modes = cip['modes']
+        elop  = cip['elop']
+        coeff = cip['coeff']
+        opips = cip['opips']
+        for alpha in range(nel):
+            for beta in range(nel):
+                mel = compute_el_mes(alpha,beta,elop)
+                if mel != 0.0:
+                    mel *= coeff
+                    for mode in range(nmodes):
+                        nspf_l  = nspfs[alpha,mode]
+                        nspf_r  = nspfs[beta,mode]
+                        npbf    = npbfs[mode]
+                        ind0_l  = spfstart[alpha,mode]
+                        indf_l  = spfend[alpha,mode]
+                        ind0_r  = spfstart[beta,mode]
+                        indf_r  = spfend[beta,mode]
+                        spfout_ = spfsout[alpha][ind0_l:indf_l]
+                        if mode not in modes:
+                            hmodes = modes + [mode]
+                            hmodes.sort()
+                        else:
+                            hmodes = modes.copy()
+                            hmodes.sort()
+                        if len(hmodes) != nmodes:
                             if alpha == beta:
                                 Asum = atensorcontract(nmodes, hmodes, A[beta])
                             elif alpha < beta:
@@ -192,44 +129,223 @@ def compute_meanfield_mats(nel, nmodes, nspfs, npbfs, spfstart, spfend, hterms,
                                                        spfovs=spfovs[beta][alpha-beta-1],
                                                        spfovsconj=True)
                             # contract over inner products of ham terms of other modes
-                            for num,hmode in enumerate(hterm['modes']):
-                                if not hmode == mode:
-                                    op = hterm['ops'][num]
+                            for num,hmode in enumerate(modes):
+                                if hmode != mode:
                                     if alpha <= beta:
-                                        opsum = opips[alpha][beta-alpha][hmode][op]
+                                        opip = opips[alpha][beta][num]
                                         conj = False
                                     else:
-                                        opsum = opips[beta][alpha-beta][hmode][op].conj()
+                                        opip = opips[beta][alpha][num].conj()
                                         conj = True
                                     if hmode < mode:
                                         order = 0
                                     else:
                                         order = 1
-                                    Asum = ahtensorcontract(nmodes,Asum,opsum,order,conj=conj)
-                                elif hmode == mode:
-                                    modeop = hterm['ops'][num]
-                            if mode in hterm['modes']:
-                                if not modeop in mf_mat_c:
-                                    mf_mat_c[modeop] = hel*Asum
-                                else:
-                                    mf_mat_c[modeop] += hel*Asum
+                                    Asum = ahtensorcontract(nmodes,Asum,opip,order,conj=conj)
+                            if mode in modes:
+                                spfout_ += mel*multAtens(nspf_l,nspf_r,npbf,Asum,
+                                                     copspfs[i][beta][ind0_r:indf_r])
                             else:
-                                mf_mat += hel*Asum
-                        else: # purely electronic operator
-                            # contract over all other modes
+                                spfout_ += mel*multAtens(nspf_l,nspf_r,npbf,Asum,
+                                                     spfs[beta][ind0_r:indf_r])
+                        else:
+                            for num,hmode in enumerate(modes):
+                                if hmode != mode:
+                                    hmodes.remove( hmode )
+                                    if alpha <= beta:
+                                        opip = opips[alpha][beta][num]
+                                        conj = False
+                                    else:
+                                        opip = opips[beta][alpha][num]
+                                        conj = True
+                                    if hmode < mode:
+                                        order = 0
+                                    else:
+                                        order = 1
+                                    Asum = atensorcontract(nmodes, hmodes, A[alpha], A[beta], 
+                                                           spfovs=opip, spfovsconj=conj)
+                            if mode in modes:
+                                spfout_ += mel*multAtens(nspf_l,nspf_r,npbf,Asum,
+                                                     copspfs[i][beta][ind0_r:indf_r])
+                            else:
+                                spfout_ += mel*multAtens(nspf_l,nspf_r,npbf,Asum,
+                                                     spfs[beta][ind0_r:indf_r])
+    return spfsout
+
+def compute_meanfield_elcorr(nel, nmodes, nspfs, npbfs, spfstart, spfend, hcelterms,
+                           spfovs, A, spfs, spfsout):
+    """Computes the meanfield operators and their action on the spfs.
+    Meanfield operators are stored if using the CMF integrator.
+
+    Input
+    -----
+    nel -
+    nmodes -
+    nspfs
+    npbfs
+    spfstart
+    spfend
+    copspfs
+    copips
+    spfovs
+    A
+    spfs
+    spfout - np.ndarray, output of meanfield operators acting on input spf
+
+    Notes
+    -----
+    For each term in the Hamiltonian the order of operators for how the
+    mean field operator acts on the spfs is:
+    1) contract the A tensor over all modes that aren't acted on by the term
+    2) compute the inner products of all the spfs that are acted on by the term
+    3) contract over the contracted A tensor and the matrix elements of the modes
+    4) act the meanfield operator on the vector of spfs
+    """
+    for hterm in hcelterms:
+        elop  = hterm['elop']
+        coeff = hterm['coeff']
+        for alpha in range(nel):
+            spfout = spfsout[alpha]
+            for beta in range(nel):
+                spf = spfs[beta]
+                mel = compute_el_mes(alpha,beta,elop)
+                if mel != 0.0:
+                    for mode in range(nmodes):
+                        # contract over all other modes
+                        if alpha == beta:
+                            ovs  = None
+                            conj = False
+                        elif alpha < beta:
+                            ovs  = spfovs[alpha][beta-alpha-1]
+                            conj = False
+                        else:
+                            ovs  = spfovs[beta][alpha-beta-1]
+                            conj = True 
+                        Asum = atensorcontract(nmodes, [mode], A[alpha], A[beta],
+                                               spfovs=ovs, spfovsconj=conj)
+                        nspf_l = nspfs[alpha,mode]
+                        nspf_r = nspfs[beta,mode]
+                        npbf   = npbfs[mode]
+                        ind0_l = spfstart[alpha,mode]
+                        indf_l = spfend[alpha,mode]
+                        ind0_r = spfstart[beta,mode]
+                        indf_r = spfend[beta,mode]
+                        spfout[ind0_l:indf_l] += mel*coeff*multAtens(nspf_l,nspf_r,npbf,Asum,
+                                                 spf[ind0_r:indf_r])
+
+def act_meanfield(nel, nmodes, nspfs, npbfs, spfstart, spfend, mfs, copspfs, 
+                  copips, spfs, spfsout):
+    """Computes the action of the meanfield operators on the spfs from stored
+    meanfield operators. This is only used in the CMF integration scheme.
+    """
+    mfcount = 0
+    for i,cip in enumerate(copips):
+        modes = cip['modes']
+        elop  = cip['elop']
+        coeff = cip['coeff']
+        opips = cip['opips']
+        for alpha in range(nel):
+            for beta in range(nel):
+                mel = compute_el_mes(alpha,beta,elop)
+                if mel != 0.0:
+                    for mode in range(nmodes):
+                        # get array sizes
+                        nspf_l = nspfs[alpha,mode]
+                        nspf_r = nspfs[beta,mode]
+                        npbf   = npbfs[mode]
+                        # get indices
+                        ind0_l = spfstart[alpha,mode]
+                        indf_l = spfend[alpha,mode]
+                        ind0_r = spfstart[beta,mode]
+                        indf_r = spfend[beta,mode]
+                        # get mf operators
+                        mf       = mfs[mfcount]
+                        mfcount += 1
+                        # get output
+                        spfout = spfsout[alpha][ind0_l:indf_l]
+                        if mode in modes:
+                            # apply things that need underlying pbf operation
+                            spfout += multAtens(nspf_l,nspf_r,npbf,mf,
+                                                copspfs[i][beta][ind0_r:indf_r])
+                        else:
+                            # apply things that don't need underlying pbf 
+                            # operation
+                            spfout += multAtens(nspf_l,nspf_r,npbf,mf,
+                                                spfs[beta][ind0_r:indf_r])
+    return spfsout
+
+def compute_meanfield_mats(nel, nmodes, nspfs, npbfs, spfstart, spfend, copips,
+                           spfovs, A):
+    """
+    """
+    mfs = []
+    # loop over the correlated terms
+    for i,cip in enumerate(copips):
+        modes = cip['modes']
+        elop  = cip['elop']
+        coeff = cip['coeff']
+        opips = cip['opips']
+        for alpha in range(nel):
+            for beta in range(nel):
+                mel = compute_el_mes(alpha,beta,elop)
+                if mel != 0.0:
+                    mel *= coeff
+                    for mode in range(nmodes):
+                        nspf_l  = nspfs[alpha,mode]
+                        nspf_r  = nspfs[beta,mode]
+                        npbf    = npbfs[mode]
+                        ind0_l  = spfstart[alpha,mode]
+                        indf_l  = spfend[alpha,mode]
+                        ind0_r  = spfstart[beta,mode]
+                        indf_r  = spfend[beta,mode]
+                        if mode not in modes:
+                            hmodes = modes + [mode]
+                            hmodes.sort()
+                        else:
+                            hmodes = modes.copy()
+                            hmodes.sort()
+                        if len(hmodes) != nmodes:
                             if alpha == beta:
-                                Asum = atensorcontract(nmodes, [mode], A[beta])
+                                Asum = atensorcontract(nmodes, hmodes, A[beta])
                             elif alpha < beta:
-                                Asum = atensorcontract(nmodes, [mode], A[alpha], A[beta],
+                                Asum = atensorcontract(nmodes, hmodes, A[alpha], A[beta], 
                                                        spfovs=spfovs[alpha][beta-alpha-1])
                             else:
-                                Asum = atensorcontract(nmodes, [mode], A[alpha], A[beta],
+                                Asum = atensorcontract(nmodes, hmodes, A[alpha], A[beta], 
                                                        spfovs=spfovs[beta][alpha-beta-1],
                                                        spfovsconj=True)
-                            mf_mat += hel*Asum
-                mfs_b.append( [mf_mat,mf_mat_c] )
-            mfs_a.append( mfs_b )
-        mfs.append( mfs_a )
+                            # contract over inner products of ham terms of other modes
+                            for num,hmode in enumerate(modes):
+                                if hmode != mode:
+                                    if alpha <= beta:
+                                        opip = opips[alpha][beta][num]
+                                        conj = False
+                                    else:
+                                        opip = opips[beta][alpha][num].conj()
+                                        conj = True
+                                    if hmode < mode:
+                                        order = 0
+                                    else:
+                                        order = 1
+                                    Asum = ahtensorcontract(nmodes,Asum,opip,order,conj=conj)
+                            mfs.append( mel*Asum )
+                        else:
+                            for num,hmode in enumerate(modes):
+                                if hmode != mode:
+                                    hmodes.remove( hmode )
+                                    if alpha <= beta:
+                                        opip = opips[alpha][beta][num]
+                                        conj = False
+                                    else:
+                                        opip = opips[beta][alpha][num]
+                                        conj = True
+                                    if hmode < mode:
+                                        order = 0
+                                    else:
+                                        order = 1
+                                    Asum = atensorcontract(nmodes, hmodes, A[alpha], A[beta], 
+                                                           spfovs=opip, spfovsconj=conj)
+                            mfs.append( mel*Asum )
     return mfs 
 
 if __name__ == "__main__":
@@ -285,19 +401,20 @@ if __name__ == "__main__":
 
     ham = Hamiltonian(nmodes, hterms)
 
-    wf.overlap_matrices()
-    opspfs,opips = precompute_ops(ham.ops, wf)
-
-    btime = time()
-    for i in range(int(1e3)):
-        for alpha in range(nel):
-            for beta in range(nel):
-                spfout = compute_meanfield_corr(alpha,beta,wf,ham.hcterms,opspfs,opips)
-    print(time()-btime)
-
-    btime = time()
-    for i in range(int(1e4)):
-        for alpha in range(nel):
-            for mode in range(nmodes):
-                spfout = compute_meanfield_uncorr(alpha,mode,wf,ham.huterms,opspfs,opips)
-    print(time()-btime)
+#    # TODO update this
+#    wf.overlap_matrices()
+#    opspfs,opips = precompute_ops(ham.ops, wf)
+#
+#    btime = time()
+#    for i in range(int(1e3)):
+#        for alpha in range(nel):
+#            for beta in range(nel):
+#                spfout = compute_meanfield_corr(alpha,beta,wf,ham.hcterms,opspfs,opips)
+#    print(time()-btime)
+#
+#    btime = time()
+#    for i in range(int(1e4)):
+#        for alpha in range(nel):
+#            for mode in range(nmodes):
+#                spfout = compute_meanfield_uncorr(alpha,mode,wf,ham.huterms,opspfs,opips)
+#    print(time()-btime)

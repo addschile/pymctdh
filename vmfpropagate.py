@@ -1,9 +1,8 @@
 import numpy as np
-import integrator
-from eom import eom
+import scipy.integrate
+from eom import vmfeom
 from time import time
 import sys
-from cy.wftools import compute_density_matrix,invert_density_matrix
 
 def vmfpropagate(times, ham, pbfs, wf, filename):
     """Propagate MCTDH wavefunction based on Dirac-Frenkel variational
@@ -16,10 +15,13 @@ def vmfpropagate(times, ham, pbfs, wf, filename):
     """
     # set up integrator and options
     dt = times[1]-times[0]
-    integrate = integrator.rk
-
-    # compute initial values to keep track
-    normprev = wf.norm()
+    r  = scipy.integrate.ode(vmfeom)
+    r.set_integrator('zvode', method='adams', order=12, atol=1.e-8, rtol=1.e-6,
+                     nsteps=1000, first_step=0, min_step=0, max_step=dt)
+    ode_args  = [wf.npsi,wf.nel,wf.nmodes,wf.nspfs,wf.npbfs,wf.psistart,wf.psiend,
+                 wf.spfstart,wf.spfend,ham,pbfs]
+    r.set_f_params(*ode_args)
+    r.set_initial_value(wf.psi, times[0])
 
     f = open(filename,'w')
     every = int(len(times)/10)
@@ -30,21 +32,21 @@ def vmfpropagate(times, ham, pbfs, wf, filename):
             sys.stdout.flush()
         # compute any expectation values
         if i%1==0:
+            wf.psi = r.y
             pops = wf.diabatic_pops()
             f.write('%.8f '%(times[i]))
             for j in range(len(pops)):
                 f.write('%.8f '%(pops[j]))
         # integrate one timestep forward
-        integrate(times[i], times[i+1], dt, wf, ham, pbfs)
-        #energy,error = integrate(times[i], times[i+1], dt, wf, ham, pbfs)
+        r.integrate(r.t + dt)
         if i%1==0:
             norm = wf.norm()
             f.write('%.8f\n'%(norm))
-            #f.write('%.8f %.8f %.8f\n'%(energy,norm,error))
             f.flush()
     f.close()
     sys.stdout.write("100 Percent done"+"."*10+"%.8f\n"%(time()-btime))
     sys.stdout.flush()
+    wf.psi = r.y.copy()
     return wf
 
 def vmfpropagatejumps(times, ham, pbfs, Ls, LdLs, wf, filename, seed=None, 
@@ -57,7 +59,6 @@ def vmfpropagatejumps(times, ham, pbfs, Ls, LdLs, wf, filename, seed=None,
     Outputs
     -------
     """
-    from optools import jump
 
     # set up random number generator
     if seed==None:
@@ -69,44 +70,48 @@ def vmfpropagatejumps(times, ham, pbfs, Ls, LdLs, wf, filename, seed=None,
 
     # set up integrator and options
     dt = times[1]-times[0]
-    integrate = integrator.rk
+    r  = scipy.integrate.ode(vmfeom)
+    r.set_integrator('zvode', method='adams', order=12, atol=1.e-8, rtol=1.e-6,
+                     nsteps=1000, first_step=0, min_step=0, max_step=dt)
+    ode_args  = [wf.npsi,wf.nel,wf.nmodes,wf.nspfs,wf.npbfs,wf.psistart,wf.psiend,
+                 wf.spfstart,wf.spfend,ham,pbfs]
+    r.set_f_params(*ode_args)
+    r.set_initial_value(wf.psi, times[0])
 
     f = open(filename,'w')
-
     btime = time()
-    wf_track = wf.copy()
     rand = rng.uniform()
     njumps = 0
     jumps = []
     for i in range(len(times)-1):
         # compute any expectation values
         if i%1==0:
-            pops = wf_track.diabatic_pops()
+            pops = wf.diabatic_pops()
             f.write('%.8f '%(times[i]))
             for j in range(len(pops)):
                 f.write('%.8f '%(pops[j]))
-            norm = wf_track.norm()
+            norm = wf.norm()
             f.write('%.8f\n'%(norm))
             f.flush()
         tau = times[i]
         while tau != times[i+1]:
             # data before integrating
             t_prev = tau
-            wf_prev = wf.copy()
-            norm_prev = wf.norm()
+            psi_prev = r.y.copy()
+            ind = wf.psiend[0,-1]
+            norm_prev = np.sum((r.y[:ind].conj()*r.y[:ind])).real
 
             # integrate one timestep forward
-            integrate(t_prev, times[i+1], times[i+1]-t_prev, wf, ham, pbfs)
-            #wf,energy,error = integrate(t_prev, times[i+1], times[i+1]-t_prev, wf, ham)
+            r.integrate(r.t + dt)
 
             # compute new norm
-            norm_psi = wf.norm()
+            ind = wf.psiend[0,-1]
+            norm_psi = np.sum((r.y[:ind].conj()*r.y[:ind])).real
             t_next = times[i+1]
-            #print(t_next,norm_psi,rand)
 
             if norm_psi <= rand:
 
-                wf_guess = wf_prev.copy()
+                r.set_initial_value(psi_prev, times[i])
 
                 # quantum jump has happened
                 njumps += 1
@@ -122,36 +127,38 @@ def vmfpropagatejumps(times, ham, pbfs, Ls, LdLs, wf, filename, seed=None,
                         np.log(norm_prev / norm_psi)*(t_final-t_prev)
 
                     # integrate psi from t_prev to t_guess
-                    norm_prev = wf_prev.norm()
-                    integrate(t_prev, t_guess, (t_guess-t_prev), wf_guess, ham, pbfs)
-                    #wf_guess,energy,error = integrate(t_prev, t_guess, (t_guess-t_prev), wf_prev, ham)
-                    norm_guess = wf_guess.norm()
-                    #print(t_guess,norm_psi,norm_prev,norm_guess,norm_guess-rand,t_guess-t_prev)
+                    r.integrate(r.t + (t_guess-t_prev))
+                    ind = wf.psiend[0,-1]
+                    norm_guess = np.sum((r.y[:ind].conj()*r.y[:ind])).real
 
                     # determine what to do next
                     if (np.abs(norm_guess - rand) <= (jump_time_tol*rand)):
                         # t_guess was right!
                         tau = t_guess
 
+                        # reset wavefunction
+                        wf.psi = r.y.copy()
+                        wf.normalize()
+
                         # jump
-                        wf_guess.normalize()
                         rand = rng.uniform()
-                        ind = jump(rand, Ls, LdLs, wf_guess, pbfs)
+                        ind = jump(rand, Ls, LdLs, wf, pbfs)
                         jumps.append( [tau,ind] )
-                        wf = wf_guess.copy()
+
+                        # reset integrator
+                        r.set_initial_value(wf.psi, tau)
 
                         # choose a new random number for next jump
                         rand = rng.uniform()
                         break
                     elif (norm_guess < rand):
                         # t_guess > t_jump
-                        t_final = t_guess
-                        wf_guess = wf_prev.copy()
+                        t_final  = t_guess
                         norm_psi = norm_guess
+                        r.set_initial_value(psi_prev, t_prev)
                     else:
                         # t_guess < t_jump
                         t_prev = t_guess
-                        #wf_prev = wf_guess.copy()
                         norm_prev = norm_guess
                     if ii == nguess:
                         raise ValueError("Couldn't find jump time")
@@ -159,13 +166,54 @@ def vmfpropagatejumps(times, ham, pbfs, Ls, LdLs, wf, filename, seed=None,
                 # no jump update time
                 tau = times[i+1]
                 # store new normalized wavefunction for this timestep
-                wf_track = wf.copy()
-                wf_track.normalize()
+                wf.psi = r.y.copy()
+                wf.normalize()
 
     f.close()
     print(time()-btime)
 
     return wf
+
+def jump_probs(LdLs,wf,pbfs):
+    """Computes the jump probabilities of all the quantum jump operators.
+    """
+    from expect import compute_expect
+    # compute expects
+    p_n = np.zeros(len(LdLs))
+    for i in range(len(LdLs)):
+        p_n[i] = compute_expect(LdLs[i],wf,pbfs)
+    p = np.sum(p_n)
+    return p_n , p
+
+def jump(rand,Ls,LdLs,wf,pbfs):
+    """
+    """
+    from optools import act_operator
+    # reshpae y into A tensor and spfs
+    A = np.zeros(2, dtype=np.ndarray)
+    spfs = np.zeros(2, dtype=np.ndarray)
+    for alpha in range(wf.nel):
+        shaper = ()
+        for mode in range(wf.nmodes):
+            shaper += (wf.nspfs[alpha,mode],)
+        # set A
+        ind0 = wf.psistart[0,alpha]
+        indf = wf.psiend[0,alpha]
+        A[alpha] = np.reshape(wf.psi[ind0:indf], shaper, order='C')
+        # set spfs
+        ind0 = wf.psistart[1,alpha]
+        indf = wf.psiend[1,alpha]
+        spfs[alpha] = wf.psi[ind0:indf]
+
+    # compute jump probabilities
+    p_n , p = jump_probs(LdLs,wf,pbfs)
+    p_n = np.cumsum(p_n)
+    # see which one it jumped along
+    p *= rand
+    for count in range(len(Ls)):
+        if p <= p_n[count]:
+            act_operator(A,spfs,wf,Ls[count],pbfs)
+            return count
 
 if __name__ == "__main__":
 
@@ -205,6 +253,7 @@ if __name__ == "__main__":
     k12   =  0.2012
     k9a1  =  0.1594
     k9a2  =  0.0484
+    gam   =  0.0050
 
     hterms = []
     hterms.append({'coeff':   -delta, 'units': 'ev', 'elop': 'sz'}) # el only operator
@@ -223,10 +272,10 @@ if __name__ == "__main__":
     hterms.append({'coeff':      k12, 'units': 'ev', 'modes': 2, 'elop': '1,1', 'ops': 'q'}) # Holstein copuling mode 3 el 1
     hterms.append({'coeff':     k9a1, 'units': 'ev', 'modes': 3, 'elop': '0,0', 'ops': 'q'}) # Holstein copuling mode 4 el 0
     hterms.append({'coeff':     k9a2, 'units': 'ev', 'modes': 3, 'elop': '1,1', 'ops': 'q'}) # Holstein copuling mode 4 el 1
-    #hterms.append({'coeff':   -0.1*0.5j, 'units': 'ev', 'modes': 0, 'elop':   '1', 'ops': 'q^2'}) # parameters for effective hamiltonian
-    #hterms.append({'coeff':   -0.1*0.5j, 'units': 'ev', 'modes': 1, 'elop':   '1', 'ops': 'q^2'}) # parameters for effective hamiltonian
-    #hterms.append({'coeff':   -0.1*0.5j, 'units': 'ev', 'modes': 2, 'elop':   '1', 'ops': 'q^2'}) # parameters for effective hamiltonian
-    #hterms.append({'coeff':   -0.1*0.5j, 'units': 'ev', 'modes': 3, 'elop':   '1', 'ops': 'q^2'}) # parameters for effective hamiltonian
+    #hterms.append({'coeff': -0.5j*gam, 'units': 'ev', 'modes': 0, 'elop':   '1', 'ops': 'n'}) # parameters for effective hamiltonian
+    #hterms.append({'coeff': -0.5j*gam, 'units': 'ev', 'modes': 1, 'elop':   '1', 'ops': 'n'}) # parameters for effective hamiltonian
+    #hterms.append({'coeff': -0.5j*gam, 'units': 'ev', 'modes': 2, 'elop':   '1', 'ops': 'n'}) # parameters for effective hamiltonian
+    #hterms.append({'coeff': -0.5j*gam, 'units': 'ev', 'modes': 3, 'elop':   '1', 'ops': 'n'}) # parameters for effective hamiltonian
 
     ham = Hamiltonian(nmodes, hterms, pbfs=pbfs)
 

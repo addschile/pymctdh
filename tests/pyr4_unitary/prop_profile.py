@@ -1,9 +1,6 @@
-#import os
-#os.environ["OMP_NUM_THREADS"] = "1"
-#os.environ["MKL_NUM_THREADS"] = "1"
 import numpy as np
 import sys
-sys.path.append('/Users/addisonschile/Software/pymctdh')
+sys.path.append('/Users/addisonschile/Software/ode_pymctdh')
 import units
 from wavefunction import Wavefunction
 from hamiltonian import Hamiltonian
@@ -14,10 +11,8 @@ if __name__ == "__main__":
 
     nel    = 2
     nmodes = 4
-    nspfs = np.array([[8, 11, 5, 4],
-                     [7, 11, 5, 4]], dtype=int)
-    #nspfs = np.array([[21, 30, 20, 11],
-    #                 [21, 30, 20, 11]], dtype=int)
+    nspfs = np.array([[7, 12, 6, 5],
+                      [7, 12, 6, 5]], dtype=int)
     npbfs = np.array([22, 32, 21, 12], dtype=int)
 
     pbfs = list()
@@ -53,7 +48,6 @@ if __name__ == "__main__":
     hterms.append({'coeff':  1.0*w9a, 'units': 'ev', 'modes': 3, 'ops':  'KE'}) # mode 4 terms
     hterms.append({'coeff':  0.5*w9a, 'units': 'ev', 'modes': 3, 'ops': 'q^2'})
     hterms.append({'coeff':    lamda, 'units': 'ev', 'modes': 0, 'elop':  'sx', 'ops': 'q'}) # Peierls copuling
-    #hterms.append({'coeff':    lamda, 'units': 'ev', 'elop':  'sx'}) # Peierls copuling
     hterms.append({'coeff':     k6a1, 'units': 'ev', 'modes': 1, 'elop': '0,0', 'ops': 'q'}) # Holstein copuling mode 2 el 0
     hterms.append({'coeff':     k6a2, 'units': 'ev', 'modes': 1, 'elop': '1,1', 'ops': 'q'}) # Holstein copuling mode 2 el 1
     hterms.append({'coeff':      k11, 'units': 'ev', 'modes': 2, 'elop': '0,0', 'ops': 'q'}) # Holstein copuling mode 3 el 0
@@ -65,6 +59,5 @@ if __name__ == "__main__":
 
     dt = 0.5
     times = np.arange(0.0,120.,dt)*units.convert_to('fs')
-    #times = np.arange(0.0,10.*dt,dt)*units.convert_to('fs')
 
     wf = vmfpropagate(times, ham, pbfs, wf, 'pyr4_profile.txt')

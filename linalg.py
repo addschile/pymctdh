@@ -38,10 +38,26 @@ def orthogonalize(nvecs, vecs, method='gram-schmidt'):
         #    vecsout[:,i] = np.dot(H, vecs[:,i])
     elif method=='gram-schmidt':
         for i in range(nvecs):
-            vecsout[:,i] = vecs[:,i] / norm(vecs[:,i])
+            nrm = norm(vecs[:,i])
+            if abs(nrm) > 1.e-30:
+                vecsout[:,i] = vecs[:,i] / nrm
             for j in range(i+1,nvecs):
                 vecs[:,j] = vecs[:,j] - np.dot(vecsout[:,i].conj(),vecs[:,j])*vecsout[:,i]
-    return vecsout
+        return vecsout
+    elif method=='new_gram-schmidt':
+        for i in range(nvecs):
+            for j in range(i):
+                vecs[:,i] -= np.dot(vecs[:,j].conj(),vecs[:,i])*vecs[:,j]
+            nrm = norm(vecs[:,i])
+            if abs(nrm) > 1.e-30:
+                vecs[:,i] /= nrm
+        for i in range(nvecs):
+            for j in range(i):
+                vecs[:,i] -= np.dot(vecs[:,j].conj(),vecs[:,i])*vecs[:,j]
+            nrm = norm(vecs[:,i])
+            if abs(nrm) > 1.e-30:
+                vecs[:,i] /= nrm
+        return vecs
 
 def orthonormalize(nvecs, vecs, method='gram-schmidt', normalize=False):
     """Orthonormalizes a set of vectors.
@@ -51,5 +67,7 @@ def orthonormalize(nvecs, vecs, method='gram-schmidt', normalize=False):
     # normalize
     if normalize:
         for i in range(nvecs):
-            vecsout[:,i] /= norm(vecsout[:,i])
+            nrm = norm(vecsout[:,i])
+            if abs(nrm) > 1.e-30:
+                vecsout[:,i] /= nrm
     return vecsout

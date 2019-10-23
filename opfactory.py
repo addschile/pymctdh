@@ -1,17 +1,19 @@
 import numpy as np
+from cy.sparsemat import make_csr
 
+# NOTE: this currently doesn't get used anywehre
 def opdag(op):
     """Function that returns the string representing the conjugate transpose of
     the operator.
     """
-    if '^' in op:
+    if '*' in op:
+        _op = op.split('*')
+        opout = opdag(_op[-1])
+        for i in range(len(_op)-1):
+            opout += '*'+opdag(_op[i-2])
+    elif '^' in op:
         _op = op.split('^')
         opout = opdag(_op[0])+'^'+_op[-1]
-    elif '*' in op:
-        _op = op.split('*')
-        opout = opdag(_op[0])
-        for i in range(len(_op)-1):
-            opout += '*'+opdag(_op[i+1])
     elif op == 'adag':
         opout = 'a'
     elif op == 'a':
@@ -24,28 +26,30 @@ def opdag(op):
         opout = 'KE'
     elif op == 'n':
         opout = 'n'
+    elif op == 'n+1':
+        opout = 'n+1'
     else:
         print(op)
         raise ValueError("Not a valid operator for HO basis")
     return opout
 
-def make_ho_ops(params,op):
+def make_ho_ops(params,op,sparse=False):
     """Function that returns the matrix representation of various operators in
     the harmonic oscillator basis.
     """
     npbf   = params['npbf']
     mass   = params['mass']
     omega = params['omega']
-    if '^' in op:
-        _op = op.split('^')
-        opout = make_ho_ops(params,_op[0])
-        for i in range(int(_op[-1])-1):
-            opout = np.dot(opout,make_ho_ops(params,_op[0]))
-    elif '*' in op:
+    if '*' in op:
         _op = op.split('*')
         opout = make_ho_ops(params,_op[0])
         for i in range(len(_op)-1):
             opout = np.dot(opout,make_ho_ops(params,_op[i+1]))
+    elif '^' in op:
+        _op = op.split('^')
+        opout = make_ho_ops(params,_op[0])
+        for i in range(int(_op[-1])-1):
+            opout = np.dot(opout,make_ho_ops(params,_op[0]))
     elif op == '1':
         opout = np.eye(npbf)
     elif op == 'adag':
@@ -69,16 +73,22 @@ def make_ho_ops(params,op):
     elif op == 'KE':
         opout = make_ho_ops(params,'p')
         opout = 0.5*np.dot(opout,opout)
-        opout = opout.real#.astype(float)
+        opout = opout.real
     elif op == 'n':
         opout = make_ho_ops(params,'adag')
         opout = np.dot(opout,make_ho_ops(params,'a'))
+    elif op == 'n+1':
+        opout = make_ho_ops(params,'n')
+        ndim = opout.shape[0]
+        opout += np.eye(ndim)
     else:
         print(op)
         raise ValueError("Not a valid operator for HO basis")
+    if sparse:
+        opout = make_csr(int(npbf),opout)
     return opout
 
-def make_ho_ops_combined(params,op):
+def make_ho_ops_combined(params,op,sparse=False):
     """
     """
     npbf   = params['npbf']
@@ -102,17 +112,20 @@ def make_ho_ops_combined(params,op):
             else:
                 opout = np.kron(opout, opout_)
     else:
-        ops = op.split('*')
-        for i in range(len(ops)):
-            par = {'npbf':npbf[i], 'mass':mass, 'omega':omegas[i]}
-            if i==0:
-                opout = make_ho_ops(par,ops[i])
-            else:
-                opout = np.kron(opout,make_ho_ops(par,ops[i]))
+        raise ValueError("Incorrectly specified operator for combined mode")
+    if sparse:
+        npbf_ = 1
+        for n in npbf:
+            npbf_ *= n
+        opout = make_csr(npbf_,opout)
     return opout
 
-def make_sinc_ops(params,op):
-    """
+def make_sinc_ops(params,op,sparse=True):
+    """Function that returns the matrix representation of various operators in
+    the sinc function basis.
+
+    References
+    ----------
     """
     npbf = params['npbf']
     qmin = params['qmin']
@@ -137,7 +150,43 @@ def make_sinc_ops(params,op):
         raise ValueError("Not a valid operator for HO basis")
     return opout
 
-def make_planewave_ops(params,op):
+def make_planewave_ops(params,op,sparse=True):
+    """Function that returns the matrix representation of various operators in
+    the plane wave basis.
     """
+    npbf = params['npbf']
+    nm   = params['nm']
+    mass = params['mass']
+    if '*' in op:
+        _op = op.split('*')
+        opout = make_planewave_ops(params,_op[0])
+        for i in range(len(_op)-1):
+            opout = np.dot(opout,make_planewave_ops(params,_op[i+1]))
+    elif '^' in op:
+        _op = op.split('^')
+        opout = make_ho_ops(params,_op[0])
+        for i in range(int(_op[-1])-1):
+            opout = np.dot(opout,make_planewave_ops(params,_op[0]))
+    elif op == '1':
+        opout = np.eye(npbf)
+    elif op == 'KE':
+        opout = np.zeros((npbf,)*2)
+        for i in range(-nm,nm+1):
+            opout[i+nm,i+nm] = -float(i)**2.
+    elif op == 'cos':
+        opout = np.zeros((npbf,)*2)
+        for i in range(npbf-1):
+            opout[i,i+1] = 0.5
+            opout[i+1,i] = 0.5
+    if sparse:
+        opout = make_csr(int(npbf),opout)
+    return opout
+
+def make_morse_ops(params,op,sparse=True):
+    """Function that returns the matrix representation of various operators in
+    the morse oscillator basis.
+
+    References
+    ----------
     """
     raise NotImplementedError

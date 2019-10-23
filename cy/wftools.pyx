@@ -16,7 +16,7 @@ def norm(int nel,cnp.ndarray A):
     return np.sqrt(nrm)
 
 def inner(int nel,cnp.ndarray A1,cnp.ndarray A2):
-    innr = 0.0j
+    cdef complex innr = 0.0j
     for i in range(nel):
         innr += np.sum(A1[i].conj()*A2[i])
     return innr
@@ -51,7 +51,7 @@ def spf_innerprod(int nspf_l,int nspf_r,int npbf,cnp.ndarray[complex, ndim=1, mo
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef void _multAtens(int nspf_l,int nspf_r,int npbf,complex[:,:] A,complex[::1] spfs,complex[::1] spfsout) nogil:
+cdef void _multAtens(int nspf_l,int nspf_r,int npbf,complex[:,::1] A,complex[::1] spfs,complex[::1] spfsout) nogil:
     """Computes the multiplication of the A tensor with the single-particle 
        functions.
     """
@@ -68,7 +68,7 @@ cdef void _multAtens(int nspf_l,int nspf_r,int npbf,complex[:,:] A,complex[::1] 
         ind_i += npbf
     return
 
-def multAtens(int nspf_l,int nspf_r,int npbf,cnp.ndarray[complex, ndim=2] A,cnp.ndarray[complex, ndim=1, mode='c'] spfs):
+def multAtens(int nspf_l,int nspf_r,int npbf,cnp.ndarray[complex, ndim=2, mode='c'] A,cnp.ndarray[complex, ndim=1, mode='c'] spfs):
     """Computes the multiplication of the A tensor with the single-particle 
        functions.
     """
@@ -81,10 +81,8 @@ def compute_density_matrix(int nspf,int alpha,int nmodes,int mode,cnp.ndarray A)
     """
     cdef int i
     cdef cnp.ndarray[complex, ndim=2, mode='c'] rho = np.zeros((nspf,)*2, dtype=complex)
-    cdef list modes = []
-    for i in range(nmodes):
-        if i!=mode:
-            modes.append(i)
+    cdef list modes = [i for i in range(nmodes)]
+    modes.remove( mode )
     return np.tensordot(A.conj(),A,axes=[modes,modes])
 
 def invert_density_matrix(cnp.ndarray[complex, ndim=2, mode='c'] rho, regularization='default', eps=1.e-8):
@@ -92,11 +90,12 @@ def invert_density_matrix(cnp.ndarray[complex, ndim=2, mode='c'] rho, regulariza
     """
     if regularization=='default':
         try:
-            w,v = np.linalg.eig(rho)
+            w,v = np.linalg.eigh(rho)
+            #w,v = np.linalg.eig(rho)
         except:
             print(rho)
             raise ValueError('rho was not diagonalized')
-        w += eps*np.exp(-w/eps)
+        w += eps*np.exp(-abs(w)/eps)
         w = 1./w
     return np.dot(v, np.dot(np.diag(w), v.conj().T))
 
@@ -157,14 +156,15 @@ cdef void _act_projector(int nspf,int npbf,complex[:,::1] proj,complex[::1] spfs
     cdef int incx = 1
     cdef int incy = 1
     for i in range(nspf):
-        blas.zcopy(&npbf,&spfs[ind:ind+npbf][0],&incx,&spfsout[ind:ind+npbf][0],&incy)
-        blas.zhemv('U',&npbf,&alpha,&proj[0,0],&npbf,&spfs[ind:ind+npbf][0],&incx,&beta,&spfsout[ind:ind+npbf][0],&incy)
+        blas.zcopy(&npbf,&spfsout[ind:ind+npbf][0],&incx,&spfs[0],&incy)
+        blas.zhemv('U',&npbf,&alpha,&proj[0,0],&npbf,&spfs[0],&incx,&beta,&spfsout[ind:ind+npbf][0],&incy)
         ind += npbf
     return
 
-def act_projector(int nspf,int npbf,cnp.ndarray[complex, ndim=2, mode='c'] proj,cnp.ndarray[complex, ndim=1, mode='c'] spfs,cnp.ndarray[complex, ndim=1, mode='c'] spfsout):
+def act_projector(int nspf,int npbf,cnp.ndarray[complex, ndim=2, mode='c'] proj,cnp.ndarray[complex, ndim=1, mode='c'] spfsout):
     """
     """
+    cdef cnp.ndarray[complex, ndim=1, mode='c'] spfs = np.zeros(npbf, dtype=complex)
     _act_projector(nspf,npbf,proj,spfs,spfsout)
     return
 

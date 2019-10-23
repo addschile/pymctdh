@@ -1,10 +1,10 @@
 import numpy as np
 from cy.wftools import spf_innerprod,overlap_matrices2,compute_projector
 from functools import lru_cache
-#from tensorutils import matelcontract,atensorcontract
 from cy.tensorutils import matelcontract,atensorcontract
 from copy import deepcopy
 
+@lru_cache(maxsize=None,typed=False)
 def isdiag(op):
     if op == '1':
         return True
@@ -22,6 +22,15 @@ def isdiag(op):
             return False
     else:
         return ValueError('Invalid electronic operator type.')
+
+@lru_cache(maxsize=None,typed=False)
+def elop_state(alpha,op):
+    if ',' in op:
+        op_ = op.split(',')
+        if int(op_[1])==alpha: return 1.0
+        else: return 0.0
+    else:
+        return 1.0
 
 @lru_cache(maxsize=None,typed=False)
 def compute_el_mes(alpha,beta,op):
@@ -51,225 +60,294 @@ def compute_el_mes(alpha,beta,op):
     else:
         return ValueError('Invalid electronic operator type.')
 
-def precompute_ops(nel,nmodes,nspfs,npbfs,spfstart,spfend,ops,pbfs,*spfs):
+def precompute_ops(nel,nmodes,nspfs,npbfs,spfstart,spfend,huterms,hcterms,pbfs,*spfs):
     """Precomputes actions of hamiltonian operators on the spfs and the inner
     products.
     """
     # compute actions of the operators on spfs
-    opspfs = compute_opspfs(nel,nmodes,nspfs,npbfs,spfstart,
-                            spfend,ops,pbfs,spfs[0])
+    uopspfs,copspfs = compute_opspfs(nel,nmodes,nspfs,npbfs,spfstart,spfend,
+                                     huterms,hcterms,pbfs,spfs[0])
     # now compute the matrices of their inner products
-    opips = compute_opips(nel,nmodes,nspfs,npbfs,spfstart,
-                          spfend,ops,opspfs,spfs[-1])
-    return opspfs , opips
+    uopips,copips = compute_opips(nel,nmodes,nspfs,npbfs,spfstart,spfend,
+                                  uopspfs,copspfs,hcterms,spfs[-1])
+    return uopspfs , copspfs , uopips , copips
 
-def compute_opspfs(nel,nmodes,nspfs,npbfs,spfstart,spfend,ops,pbfs,spfs):
+def compute_opspfs(nel,nmodes,nspfs,npbfs,spfstart,spfend,huterms,hcterms,pbfs,spfs):
     """Computes all the individual operators that act on the spfs
     """
-    opspfs = []
-    # loop over each electronic state
-    for i in range(nel):
-        opspfsel = []
-        # loop over each mode
-        for j in range(nmodes):
-            nspf = nspfs[i,j]
-            npbf = npbfs[j]
-            opspfmode = {}
-            ind0 = spfstart[i,j]
-            indf = spfend[i,j]
-            # loop over unique operators for the mode
-            for k in range(len(ops[j])):
-                # get spf for this mode/electronic state
-                spf = spfs[i][ind0:indf]
-                spf_tmp = np.zeros_like(spf, dtype=complex)
-                ind = 0 
-                for n in range(nspf):
-                    spf_tmp[ind:ind+npbf] = pbfs[j].operate(spf[ind:ind+npbf],
-                                                            ops[j][k])
-                    ind += npbf
-                opspfmode[ops[j][k]] = spf_tmp
-            opspfsel.append( opspfmode )
-        opspfs.append( opspfsel )
-    return opspfs
+    # compute uncorrelated op*spfs
+    if len(huterms) == 0:
+        uopspfs = None
+    else:
+        uopspfs = np.zeros(nel, dtype=np.ndarray)
+        for alpha in range(nel):
+            uopspfs[alpha] = np.zeros_like(spfs[alpha], dtype=complex)
+        # loop over all the uncorrelated terms in the hamiltonian
+        for hterm in huterms:
+            for alpha in range(nel):
+                # does this term act on this electronic state?
+                elop = hterm['elop']
+                if elop_state(alpha,elop) != 0:
+                    mel = compute_el_mes(alpha,alpha,elop)
+                    opspfs = uopspfs[alpha]
+                    coeff = hterm['coeff']
+                    if 'modes' in hterm:
+                        # act it on the mode
+                        mode  = hterm['modes'][0]
+                        nspf  = nspfs[alpha,mode]
+                        npbf  = npbfs[mode]
+                        ind   = spfstart[alpha,mode]
+                        op    = hterm['ops'][0]
+                        for n in range(nspf):
+                            spf = spfs[alpha][ind:ind+npbf]
+                            opspfs[ind:ind+npbf] += coeff*mel*pbfs[mode].operate(spf,op)
+                            ind += npbf
+                    else:
+                        # multiply coefficient to spfs
+                        opspfs += coeff*mel*spfs[alpha]
+    # compute correlated op*spfs
+    if len(hcterms) == 0:
+        copspfs = None
+    else:
+        copspfs = np.zeros(len(hcterms), dtype=np.ndarray)
+        # loop over all the correlated terms in the hamiltonian
+        for i,hterm in enumerate(hcterms):
+            # loop over each electronic state
+            opspfs = np.zeros(nel, dtype=np.ndarray)
+            for alpha in range(nel):
+                # does this term act on this electronic state?
+                elop = hterm['elop']
+                if elop_state(alpha,elop) != 0:
+                    opspfs[alpha] = np.zeros_like(spfs[alpha], dtype=complex)
+                    coeff = hterm['coeff']
+                    # act it on the modes
+                    modes = hterm['modes']
+                    for j,mode in enumerate(modes):
+                        nspf = nspfs[alpha,mode]
+                        npbf = npbfs[mode]
+                        ind  = spfstart[alpha,mode]
+                        op   = hterm['ops'][j]
+                        for n in range(nspf):
+                            spf = spfs[alpha][ind:ind+npbf]
+                            opspfs[alpha][ind:ind+npbf] += pbfs[mode].operate(spf,op)
+                            ind += npbf
+            copspfs[i] = opspfs
+    return uopspfs,copspfs
 
-def compute_opips(nel,nmodes,nspfs,npbfs,spfstart,spfend,ops,opspfs,spfs):
+def compute_opips(nel,nmodes,nspfs,npbfs,spfstart,spfend,uopspfs,copspfs,
+                  hcterms,spfs):
     """Computes all the individual operators innerproducts
     """
-    opips = []
-    for i in range(nel):
-        opipsel_i = []
-        for j in range(i,nel):
-            opipsel_j = []
-            # loop over each mode
-            for k in range(nmodes):
-                nspf_i = nspfs[i,k]
-                nspf_j = nspfs[j,k]
-                npbf = npbfs[k]
-                ind0 = spfstart[i,k]
-                indf = spfend[i,k]
-                opipsmode = {}
-                # loop over unique operators for the mode
-                for l in range(len(ops[k])):
-                    opipsmode[ops[k][l]] = spf_innerprod(nspf_i,nspf_j,npbf,
-                                                         spfs[i][ind0:indf],
-                                                         opspfs[j][k][ops[k][l]])
-                opipsel_j.append( opipsmode )
-            opipsel_i.append( opipsel_j )
-        opips.append( opipsel_i )
-    return opips
+    # compute inner products for uncorrelated terms
+    if uopspfs is None:
+        uopips = None
+    else:
+        uopips = np.zeros(nel, dtype=np.ndarray)
+        for alpha in range(nel):
+            uopipsmode = np.zeros(nmodes, dtype=np.ndarray)
+            for mode in range(nmodes):
+                nspf = nspfs[alpha,mode]
+                npbf = npbfs[mode]
+                ind0 = spfstart[alpha,mode]
+                indf = spfend[alpha,mode]
+                spf = spfs[alpha][ind0:indf]
+                opspf = uopspfs[alpha][ind0:indf]
+                uopipsmode[mode] = spf_innerprod(nspf,nspf,npbf,spf,opspf)
+            uopips[alpha] = uopipsmode
+    # compute inner products for correlated terms
+    copips = None
+    if copspfs is None:
+        copips = None
+    else:
+        copips = []
+        for i,hcterm in enumerate(hcterms):
+            # get opspfs
+            opspfs = copspfs[i]
+            # get info about this term
+            modes = hcterm['modes']
+            elop  = hcterm['elop']
+            coeff = hcterm['coeff']
+            # make dictionary for opips of this term
+            opips = {}
+            opips['modes'] = hcterm['modes']
+            opips['elop']  = elop
+            opips['coeff'] = coeff
+            opip = []
+            for alpha in range(nel):
+                opip_a = []
+                for beta in range(alpha,nel):
+                    opip_b = []
+                    mel = compute_el_mes(alpha,beta,elop)
+                    if mel != 0.0:
+                        for mode in modes:
+                            nspf_l = nspfs[alpha,mode]
+                            nspf_r = nspfs[beta,mode]
+                            npbf   = npbfs[mode]
+                            ind0_l = spfstart[alpha,mode]
+                            indf_l = spfend[alpha,mode]
+                            ind0_r = spfstart[beta,mode]
+                            indf_r = spfend[beta,mode]
+                            spf    = spfs[alpha][ind0_l:indf_l]
+                            opspf  = copspfs[i][beta][ind0_r:indf_r]
+                            opip_b.append( spf_innerprod(nspf_l,nspf_r,npbf,spf,opspf) )
+                    opip_a.append( opip_b )
+                opip.append( opip_a )
+            opips['opips'] = opip
+            copips.append( opips )
+    return uopips,copips
 
-def newmatelterm(nmodes,alpha,beta,A,A_,opterm,opips,spfovs):
-    # TODO make this a more descriptive comment
-    """Compute matrix elements acting on the A tensor from a precomputed set of
-    spf inner products.
+# TODO this is not very general
+def opmatel(nel,nmodes,uopips,spfovs,A,A_):
     """
-    mel = compute_el_mes(alpha,beta,opterm['elop'])
-    if mel != 0.0:
-        mel *= opterm['coeff']
-        if 'modes' in opterm:
-            if alpha <= beta:
-                A_ += mel*matelcontract(nmodes,
-                    opterm['modes'],opterm['ops'],opips[alpha][beta-alpha],
-                    A, spfovs=spfovs[alpha][beta-alpha])
-            else:
-                A_ += mel*matelcontract(nmodes,
-                    opterm['modes'],opterm['ops'],opips[beta][alpha-beta],
-                    A, spfovs=spfovs[beta][alpha-beta],
-                    conj=True)
-        else: # purely electronic operator
-            if alpha <= beta:
-                A_ += mel*matelcontract(nmodes,None,None,
-                    opips[alpha][beta-alpha],A,
-                    spfovs=spfovs[alpha][beta-alpha])
-            else:
-                A_ += mel*matelcontract(nmodes,None,None,
-                    opips[beta][alpha-beta],A,
-                    spfovs=spfovs[beta][alpha-beta],
-                    conj=True)
-
-def matelterm(nmodes,alpha,beta,A,A_,opterm,opips,spfovs):
-    # TODO make this a more descriptive comment
-    """Compute matrix elements acting on the A tensor from a precomputed set of
-    spf inner products.
     """
-    mel = compute_el_mes(alpha,beta,opterm['elop'])
-    if mel != 0.0:
-        mel *= opterm['coeff']
-        if 'modes' in opterm:
-            if alpha == beta:
-                A_ += mel*matelcontract(nmodes,
-                    opterm['modes'],opterm['ops'],opips[alpha][beta-alpha],
-                    A)
-            elif alpha < beta:
-                A_ += mel*matelcontract(nmodes,
-                    opterm['modes'],opterm['ops'],opips[alpha][beta-alpha],
-                    A, spfovs=spfovs[alpha][beta-alpha-1])
-            elif alpha > beta:
-                A_ += mel*matelcontract(nmodes,
-                    opterm['modes'],opterm['ops'],opips[beta][alpha-beta],
-                    A, spfovs=spfovs[beta][alpha-beta-1],
-                    conj=True)
-        else: # purely electronic operator
-            if alpha == beta:
-                A_ += mel*matelcontract(nmodes,None,None,
-                    opips[alpha][beta-alpha],A)
-            elif alpha < beta:
-                A_ += mel*matelcontract(nmodes,None,None,
-                    opips[alpha][beta-alpha],A,
-                    spfovs=spfovs[alpha][beta-alpha-1])
-            elif alpha > beta:
-                A_ += mel*matelcontract(nmodes,None,None,
-                    opips[beta][alpha-beta],A,
-                    spfovs=spfovs[beta][alpha-beta-1],
-                    conj=True)
-
-def matel(nel,nmodes,nspfs,npbfs,opterms,opips,spfovs,A):
-    # TODO make this a more descriptive comment
-    """Compute matrix elements acting on the A tensor from a precomputed set of
-    spf inner products.
-    """
-    Aout = np.zeros(nel, dtype=np.ndarray)
-    # loop over the electronic states
     for alpha in range(nel):
-        A_ = np.zeros_like(A[alpha], dtype=complex)
-        for beta in range(nel):
-            # loop over the terms in the Hamiltonian
-            for opterm in opterms:
-                matelterm(nmodes,alpha,beta,A[beta],A_,opterm,opips,spfovs)
-        Aout[alpha] = A_
+        for mode in range(nmodes):
+            A_[alpha] += matelcontract(nmodes,[mode],[uopips[alpha][mode]],
+                                       A[alpha],spfovs=spfovs[alpha][0])
+
+def umatel(nel,nmodes,uopips,A,A_):
+    """Compute matrix elements acting on the A tensor from a precomputed set of
+    spf inner products for the uncorrelated terms in the Hamiltonian.
+    """
+    for alpha in range(nel):
+        for mode in range(nmodes):
+            A_[alpha] += matelcontract(nmodes,[mode],[uopips[alpha][mode]],A[alpha])
+
+def uelmatel(nel,nmodes,huelterms,A,A_):
+    """Compute matrix elements acting on the A tensor from a precomputed set of
+    spf inner products for the uncorrelated terms in the Hamiltonian.
+    """
+    for i,hterm in enumerate(huelterms):
+        coeff = hterm['coeff']
+        elop  = hterm['elop']
+        for alpha in range(nel):
+            mel = compute_el_mes(alpha,alpha,elop)
+            if mel != 0.0:
+                A_[alpha] += mel*coeff*A[alpha]
+
+def cmatel(nel,nmodes,hcelterms,copips,spfovs,A,A_):
+    """Compute matrix elements acting on the A tensor from a precomputed set of
+    spf inner products for the correlated terms in the Hamiltonian.
+    """
+    for i,cip in enumerate(copips):
+        modes = cip['modes']
+        elop  = cip['elop']
+        opips = cip['opips']
+        coeff = cip['coeff']
+        for alpha in range(nel):
+            for beta in range(nel):
+                mel = compute_el_mes(alpha,beta,elop)
+                if mel != 0.0:
+                    mel *= coeff
+                    if alpha == beta:
+                        opip = opips[alpha][alpha]
+                        ovs  = None
+                        conj = False
+                    elif alpha < beta:
+                        opip = opips[alpha][beta]
+                        ovs = spfovs[alpha][beta-alpha-1]
+                        conj = False
+                    else:
+                        opip = opips[beta][alpha]
+                        ovs = spfovs[beta][alpha-beta-1]
+                        conj = True
+                    A_[alpha] += mel*matelcontract(nmodes,modes,opip,A[beta],
+                                               spfovs=ovs,conj=conj)
+
+def celmatel(nel,nmodes,hcelterms,spfovs,A,A_):
+    """Compute matrix elements acting on the A tensor from a precomputed set of
+    spf inner products for the correlated terms in the Hamiltonian.
+    """
+    for i,hterm in enumerate(hcelterms):
+        for alpha in range(nel):
+            for beta in range(nel):
+                mel = compute_el_mes(alpha,beta,hterm['elop'])
+                if mel != 0.0:
+                    mel *= hterm['coeff']
+                    if alpha < beta:
+                        ovs  = spfovs[alpha][beta-alpha-1]
+                        conj = False
+                    else:
+                        ovs  = spfovs[beta][alpha-beta-1]
+                        conj = True
+                    A_[alpha] += mel*matelcontract(nmodes,None,None,A[beta],
+                                         spfovs=ovs,conj=conj)
+
+
+def matel(nel,nmodes,nspfs,npbfs,uopips,copips,huelterms,hcelterms,spfovs,A):
+    """Compute matrix elements acting on the A tensor from a precomputed set of
+    spf inner products.
+    """
+    # make the output A tensor
+    Aout = np.zeros(nel, dtype=np.ndarray)
+    for alpha in range(nel):
+        Aout[alpha] = np.zeros_like(A[alpha], dtype=complex)
+    # compute matrix elements for uncorrelated terms
+    if not uopips is None:
+        umatel(nel,nmodes,uopips,A,Aout)
+    # compute matrix elements for correlated terms
+    if not copips is None:
+        cmatel(nel,nmodes,hcelterms,copips,spfovs,A,Aout)
+    # compute matrix elements for uncorrelated electronic terms
+    if len(huelterms) != 0:
+        uelmatel(nel,nmodes,huelterms,A,Aout)
+    # compute matrix elements for correlated electronic terms
+    if len(hcelterms) != 0:
+        celmatel(nel,nmodes,hcelterms,spfovs,A,Aout)
     return Aout
 
-def act_operator(wf,op,pbfs,tol=1.e-8,maxiter=100):
+# TODO need to generalize this to many-mode operators
+def act_operator(A,spfs,wf,op,pbfs,tol=1.e-8,maxiter=100):
     """
     """
-    from wavefunction import Wavefunction
-    from meanfield import compute_meanfield_uncorr
+    from meanfield import compute_meanfield_uncorr_op
     # get wf info
-    nel = wf.nel
-    nmodes = wf.nmodes
-    nspfs = wf.nspfs
-    npbfs = wf.npbfs
+    nel      = wf.nel
+    nmodes   = wf.nmodes
+    nspfs    = wf.nspfs
+    npbfs    = wf.npbfs
     spfstart = wf.spfstart
-    spfend = wf.spfend
+    spfend   = wf.spfend
+    psistart = wf.psistart
+    psiend   = wf.psiend
 
     # create wavefunction data for iterations
-    A_k      = wf.copy('A')
-    spfs_k   = wf.copy('spfs')
-    A_kp1    = wf.copy('A')
-    spfs_kp1 = wf.copy('spfs')
+    A_k      = np.zeros(nel, dtype=np.ndarray)
+    A_kp1    = np.zeros(nel, dtype=np.ndarray)
+    spfs_k   = np.zeros(nel, dtype=np.ndarray)
+    spfs_kp1 = np.zeros(nel, dtype=np.ndarray)
+    for alpha in range(nel):
+        A_k[alpha]      = np.zeros_like(A[alpha], dtype=complex)
+        A_kp1[alpha]    = np.zeros_like(A[alpha], dtype=complex)
+        spfs_k[alpha]   = np.zeros_like(spfs[alpha], dtype=complex)
+        spfs_kp1[alpha] = np.zeros_like(spfs[alpha], dtype=complex)
 
     # compute action of operator on wf spfs
-    opspfs = compute_opspfs(nel,nmodes,nspfs,npbfs,spfstart,
-                            spfend,op.ops,pbfs,wf.spfs)
-    #opspfs = compute_opspfs(op.ops,wf)
-    # now compute the matrices of their inner products
-    opips = compute_opips(nel,nmodes,nspfs,npbfs,spfstart,
-                          spfend,op.ops,opspfs,wf.spfs)
-    #opips = compute_opips(op.ops,wf,opspfs)
-    #return opspfs,opips
-
+    uopspfs,copspfs,uopips,copips = precompute_ops(nel,nmodes,nspfs,npbfs,
+                                        spfstart,spfend,[op.term],[],pbfs,spfs)
 
     # compute overlap matrices
-    spfovs = overlap_matrices2(nel,nmodes,nspfs,npbfs,spfstart,wf.spfs,wf.spfs)
-    #spfovs = overlap_matrices2(wf,wf)
-    #return spfovs
+    spfovs = overlap_matrices2(nel,nmodes,nspfs,npbfs,spfstart,spfs,spfs)
 
-    # update initial A tensor
-    for alpha in range(nel):
-        A_k[alpha] *= 0.0
-        for beta in range(nel):
-            newmatelterm(nmodes,alpha,beta,wf.A[beta],A_k[alpha],op.term,opips,spfovs)
-    #return A_k 
+    # update trial A coefficients
+    opmatel(nel,nmodes,uopips,spfovs,A,A_k)
 
     # perform iterations until convergence is reached
     flag = 1
     for i in range(maxiter):
         # update spfs
-        if 'modes' in op.term:
-            for alpha in range(nel):
-                spfs_kp1[alpha] *= 0.0
-                for mode in range(nmodes):
-                    ind0 = spfstart[alpha,mode]
-                    indf = spfend[alpha,mode]
-                    # TODO arguments
-                    spfs_kp1[alpha][ind0:indf] += compute_meanfield_uncorr(alpha,mode,[op.term],opspfs,wf.spfs[alpha][ind0:indf],gen=True)
-            # gram-schmidt orthogonalize the spfs
-            spfs_kp1 = wf.orthonormalize_spfs(spfs_kp1)
-            #wf_kp1.orthonormalize_spfs()
-        #return wf_kp1
-        # update the A tensor coefficients
-        # TODO arguments
-        opips = compute_opips(nel,nmodes,nspfs,npbfs,spfstart,
-                              spfend,op.ops,opspfs,spfs_kp1)
-        #opips = compute_opips(op.ops,wf_kp1,opspfs)
-        spfovs = overlap_matrices2(nel,nmodes,nspfs,npbfs,spfstart,spfs_kp1,wf.spfs)
-        #spfovs = overlap_matrices2(wf_kp1,wf)
+        compute_meanfield_uncorr_op(nel,nmodes,nspfs,npbfs,spfstart,spfend,
+                                    op.term,uopspfs,spfs,spfs_kp1)
+        # gram-schmidt orthogonalize the spfs
+        spfs_kp1 = wf.orthonormalize_spfs(spfs_kp1)
+        # compute new matrix elements
+        uopips,copips = compute_opips(nel,nmodes,nspfs,npbfs,spfstart,spfend,
+                            uopspfs,copspfs,[],spfs_kp1)
+        spfovs = overlap_matrices2(nel,nmodes,nspfs,npbfs,spfstart,spfs_kp1,spfs)
         for alpha in range(nel):
             A_kp1[alpha] *= 0.0
-            for beta in range(nel):
-                # TODO arguments
-                newmatelterm(nmodes,alpha,beta,wf.A[beta],A_kp1[alpha],op.term,opips,spfovs)
-                #newmatelterm(nmodes,alpha,beta,wf.A[beta],wf_kp1.A[alpha],op.term,opips,spfovs)
+        # update trial A coefficients
+        opmatel(nel,nmodes,uopips,spfovs,A,A_kp1)
         # check convergence
         delta = 0.0
         for alpha in range(nel):
@@ -278,9 +356,7 @@ def act_operator(wf,op,pbfs,tol=1.e-8,maxiter=100):
                 indf = spfend[alpha,mode]
                 # compute criteria based on projectors
                 p_k = compute_projector(nspfs[alpha,mode],npbfs[mode],spfs_k[alpha][ind0:indf])
-                #p_k = compute_projector(nspf[alpha,mode],npbf[mode],spfs_k.spfs[alpha][ind0:indf])
                 p_kp1 = compute_projector(nspfs[alpha,mode],npbfs[mode],spfs_kp1[alpha][ind0:indf])
-                #p_kp1 = compute_projector(nspf[alpha,mode],npbf[mode],spfs_kp1.spfs[alpha][ind0:indf])
                 delta += np.linalg.norm(p_kp1-p_k)
         if delta < tol:
             flag = 0
@@ -292,56 +368,15 @@ def act_operator(wf,op,pbfs,tol=1.e-8,maxiter=100):
     if flag:
         raise ValueError("Maximum iterations reached. Could not converge.")
 
-    # copy data and normalize wavefunction
-    wf.A = deepcopy(A_kp1)
-    wf.spfs = deepcopy(spfs_kp1)
+    # reshape everything for output
+    for alpha in range(nel):
+        ind0 = psistart[0,alpha]
+        indf = psiend[0,alpha]
+        wf.psi[ind0:indf] = A_kp1[alpha].ravel()
+        ind0 = psistart[1,alpha]
+        indf = psiend[1,alpha]
+        wf.psi[ind0:indf] = spfs_kp1[alpha]
     wf.normalize()
-
-def compute_expect(op,wf,pbfs):
-    """Computes the expectation value of a generic operator.
-    """
-    # get wf info
-    nmodes = wf.nmodes
-    nel = wf.nel
-    nspfs = wf.nspfs
-    npbfs = wf.npbfs
-    spfstart = wf.spfstart
-    spfend = wf.spfend
-
-    modes = op.term['modes']
-    mode = op.term['modes'][0]
-    _op = op.term['ops'][0]
-    # make matrix of spf inner products
-    opspfs,opips = precompute_ops(nel,nmodes,nspfs,npbfs,spfstart,spfend,op.ops,pbfs,wf.spfs)
-    # contract (A*)xA with opips
-    expect = 0.0
-    for alpha in range(wf.nel):
-        Asum = atensorcontract(nmodes, modes, wf.A[alpha])
-        #Asum = atensorcontract(modes, wf.A[alpha])
-        expect += np.tensordot(Asum,opips[alpha][0][mode][_op],axes=[[0,1],[0,1]]).real
-        #expect += np.einsum('ij,ij',Asum,opips[alpha][0][mode][_op]).real
-    return expect
-
-def jump_probs(LdLs,wf,pbfs):
-    """Computes the jump probabilities of all the quantum jump operators.
-    """
-    p_n = np.zeros(len(LdLs))
-    for i in range(len(LdLs)):
-        p_n[i] = compute_expect(LdLs[i],wf,pbfs)
-    p = np.sum(p_n)
-    return p_n , p
-
-def jump(rand,Ls,LdLs,wf,pbfs):
-    """
-    """
-    # compute jump probabilities
-    p_n , p = jump_probs(LdLs,wf,pbfs)
-    # see which one it jumped along
-    p *= rand
-    for count in range(len(Ls)):
-        if p <= np.sum(p_n[:count+1]):
-            act_operator(wf,Ls[count],pbfs)
-            return count
 
 if __name__ == "__main__":
 
@@ -350,8 +385,11 @@ if __name__ == "__main__":
     from wavefunction import Wavefunction
     from hamiltonian import Hamiltonian
     from qoperator import QOperator
-    from eom import eom_coeffs
-    from meanfield import compute_meanfield_uncorr
+    #from eom import eom_coeffs
+    #from meanfield import compute_meanfield_uncorr
+    from cy.wftools import overlap_matrices
+    import cProfile
+    import old_stuff.optools
 
     nel    = 2
     nmodes = 4
@@ -400,115 +438,88 @@ if __name__ == "__main__":
     hterms.append({'coeff':     k9a2, 'units': 'ev', 'modes': 3, 'elop': '1,1', 'ops': 'q'}) # Holstein copuling mode 4 el 1
 
     ham = Hamiltonian(nmodes, hterms, pbfs=pbfs)
-    #print(ham.ops)
 
-    # precompute action of operators and inner products
-    print('precompute_ops')
-    btime = time()
-    opspfs,opips = precompute_ops(nel,nmodes,nspfs,npbfs,wf.spfstart,wf.spfend,ham.ops,pbfs,wf.spfs)
-    print(time()-btime)
-    #print(opips)
+    ### test of uopspfs and uopips ###
+    print('testing uncorrelated opspfs and opips')
+    uopspfs,copspfs,uopips,copips = precompute_ops(nel,nmodes,nspfs,npbfs,wf.spfstart,wf.spfend,ham.huterms,ham.hcterms,pbfs,wf.spfs)
+    opspfs,opips = old_stuff.optools.precompute_ops(wf.nel,wf.nmodes,wf.nspfs,wf.npbfs,wf.spfstart,wf.spfend,ham.ops,pbfs,wf.spfs)
+    for alpha in range(nel):
+        print('el state')
+        mode = 0
+        print('mode',mode)
+        nspf = wf.nspfs[alpha,mode]
+        npbf = wf.npbfs[mode]
+        ind0 = wf.spfstart[alpha,mode]
+        indf = wf.spfend[alpha,mode]
+        spf  = hterms[1]['coeff']*opspfs[alpha][mode]['KE']
+        spf += hterms[2]['coeff']*opspfs[alpha][mode]['q^2']
+        if alpha == 0:
+            spf += hterms[0]['coeff']*wf.spfs[alpha][ind0:indf]
+        else:
+            spf -= hterms[0]['coeff']*wf.spfs[alpha][ind0:indf]
+        opip = spf_innerprod(nspf,nspf,npbf,wf.spfs[alpha][ind0:indf],spf)
+        print(np.allclose(opip,uopips[alpha][mode]))
+        print(np.allclose(spf,uopspfs[alpha][ind0:indf]))
+        mode = 1
+        print('mode',mode)
+        nspf = wf.nspfs[alpha,mode]
+        npbf = wf.npbfs[mode]
+        ind0 = wf.spfstart[alpha,mode]
+        indf = wf.spfend[alpha,mode]
+        spf  = hterms[3]['coeff']*opspfs[alpha][mode]['KE']
+        spf += hterms[4]['coeff']*opspfs[alpha][mode]['q^2']
+        if alpha == 0:
+            spf += hterms[0]['coeff']*wf.spfs[alpha][ind0:indf]
+            spf += hterms[10]['coeff']*opspfs[alpha][mode]['q']
+        else:
+            spf -= hterms[0]['coeff']*wf.spfs[alpha][ind0:indf]
+            spf += hterms[11]['coeff']*opspfs[alpha][mode]['q']
+        opip = spf_innerprod(nspf,nspf,npbf,wf.spfs[alpha][ind0:indf],spf)
+        print(np.allclose(opip,uopips[alpha][mode]))
+        print(np.allclose(spf,uopspfs[alpha][ind0:indf]))
+        mode = 2
+        print('mode',mode)
+        nspf = wf.nspfs[alpha,mode]
+        npbf = wf.npbfs[mode]
+        ind0 = wf.spfstart[alpha,mode]
+        indf = wf.spfend[alpha,mode]
+        spf  = hterms[5]['coeff']*opspfs[alpha][mode]['KE']
+        spf += hterms[6]['coeff']*opspfs[alpha][mode]['q^2']
+        if alpha == 0:
+            spf += hterms[0]['coeff']*wf.spfs[alpha][ind0:indf]
+            spf += hterms[12]['coeff']*opspfs[alpha][mode]['q']
+        else:
+            spf -= hterms[0]['coeff']*wf.spfs[alpha][ind0:indf]
+            spf += hterms[13]['coeff']*opspfs[alpha][mode]['q']
+        opip = spf_innerprod(nspf,nspf,npbf,wf.spfs[alpha][ind0:indf],spf)
+        print(np.allclose(opip,uopips[alpha][mode]))
+        print(np.allclose(spf,uopspfs[alpha][ind0:indf]))
+        mode = 3
+        print('mode',mode)
+        nspf = wf.nspfs[alpha,mode]
+        npbf = wf.npbfs[mode]
+        ind0 = wf.spfstart[alpha,mode]
+        indf = wf.spfend[alpha,mode]
+        spf  = hterms[7]['coeff']*opspfs[alpha][mode]['KE']
+        spf += hterms[8]['coeff']*opspfs[alpha][mode]['q^2']
+        if alpha == 0:
+            spf += hterms[0]['coeff']*wf.spfs[alpha][ind0:indf]
+            spf += hterms[14]['coeff']*opspfs[alpha][mode]['q']
+        else:
+            spf -= hterms[0]['coeff']*wf.spfs[alpha][ind0:indf]
+            spf += hterms[15]['coeff']*opspfs[alpha][mode]['q']
+        opip = spf_innerprod(nspf,nspf,npbf,wf.spfs[alpha][ind0:indf],spf)
+        print(np.allclose(opip,uopips[alpha][mode]))
+        print(np.allclose(spf,uopspfs[alpha][ind0:indf]))
 
-    print('opspfs')
-    btime = time()
-    opspfs = compute_opspfs(nel,nmodes,nspfs,npbfs,wf.spfstart,wf.spfend,ham.ops,pbfs,wf.spfs)
-    print(time()-btime)
-    #print(opspfs)
-
-    print('opips')
-    btime = time()
-    opips = compute_opips(nel,nmodes,nspfs,npbfs,wf.spfstart,wf.spfend,ham.ops,opspfs,wf.spfs)
-    print(time()-btime)
-
-    #term = {'coeff': 0.01, 'units': 'ev', 'modes': 0, 'ops': 'q'}
-    #print('with hamiltonian first')
-    #ham = Hamiltonian(nmodes, [term.copy()], wf=wf)
-    #opspfs,opips = precompute_ops(ham.ops, wf)
-    ##Aout2 = matel(wf,ham.hterms,opips)
-    #Aout = []
-    #for alpha in range(nel):
-    #    A_ = np.zeros_like(wf.A[alpha], dtype=complex)
-    #    for beta in range(nel):
-    #        matelterm(nmodes,alpha,beta,wf.A[beta],A_,ham.hterms[0],opips,wf.spfovs)
-    #    Aout.append(A_)
-    #for i in range(nel):
-    #    print(np.allclose(Aout[i],Aout2[i]))
-    #wf_kp1 = wf.copy()
-    #for alpha in range(nel):
-    #    wf_kp1.spfs[alpha] *= 0.0
-    #    for mode in range(nmodes):
-    #        ind0 = wf.spfstart[alpha,mode]
-    #        indf = wf.spfend[alpha,mode]
-    #        wf_kp1.spfs[alpha][ind0:indf] += compute_meanfield_uncorr(alpha,mode,wf,ham.hterms,opspfs,gen=True)
-
-    #op = QOperator(nmodes, term, wf=wf)
-    #for i in range(nmodes):
-    #    print(wf.pbfs[i].ops.keys())
-
-    ## check to make sure opspfs and opips are the same
-    #opspfs2,opips2 = act_operator(wf,op)
-    #print('opspfs')
-    #for i in range(nel):
-    #    print(i)
-    #    print(np.allclose(opspfs[i][0]['q'],opspfs2[i][0]['q']))
-    #for i in range(nel):
-    #    print(i)
-    #    for j in range(1,nmodes):
-    #        print(opspfs[i][j],opspfs2[i][j])
-    #print('')
-    #print('opips')
-    #for i in range(nel):
-    #    for j in range(nel-i):
-    #        print(i,j)
-    #        print(np.allclose(opips[i][j][0]['q'],opips2[i][j][0]['q']))
-    #for i in range(nel):
-    #    for j in range(nel-i):
-    #        print(i,j)
-    #        for k in range(1,nmodes):
-    #            print(opips[i][j][k],opips2[i][j][k])
-
-    ## check to make sure ovs are the same
-    #spfovs = act_operator(wf,op)
-    #for i in range(nel):
-    #    for j in range(i,nel):
-    #        print(i,j)
-    #        for k in range(nmodes):
-    #            ov = spfovs[i][j-i][k]
-    #            if i==j:
-    #                print(np.allclose(np.eye(len(ov)),ov))
-    #            else:
-    #                print(np.allclose(wf.spfovs[i][j-i-1][k],ov))
-
-    ## check to make sure new A tensor is correct
-    #new_A = act_operator(wf,op)
-    #for i in range(nel):
-    #    print(np.sum(Aout[i]),np.sum(new_A[i]))
-    #    print(np.allclose(Aout[i],new_A[i]))
-
-    ## check to make sure mean field operation is correct
-    #new_wf = act_operator(wf,op)
-    #for alpha in range(nel):
-    #    print(np.allclose(wf_kp1.spfs[alpha],new_wf.spfs[alpha]))
-
-    ## act this new operator on the wavefunction
-    #print('act op')
-    #new_wf = act_operator(wf,op)
-    ##for i in range(nel):
-    ##    print(new_wf.spfs[i])
-    ## compute the energy of this new wavefunction
-    #wf.overlap_matrices()
-    #print('precompute_ops')
-    #opspfs,opips = precompute_ops(ham.ops, wf)
-    #A = eom_coeffs(wf, ham, opips)
-    #energy = 0.0
-    #for i in range(nel):
-    #    energy += (1.j*np.sum(wf.A[i].conj()*A[i])).real
-    #print(energy/0.0367493)
-    #new_wf.overlap_matrices()
-    #print('precompute_ops')
-    #opspfs,opips = precompute_ops(ham.ops, new_wf)
-    #A = eom_coeffs(new_wf, ham, opips)
-    #energy = 0.0
-    #for i in range(nel):
-    #    energy += (1.j*np.sum(new_wf.A[i].conj()*A[i])).real
-    #print(energy/0.0367493)
+    ### test of compute copspfs to old opspfs ###
+    print('testing correlated opspfs and opips')
+    uopspfs,copspfs,uopips,copips = precompute_ops(nel,nmodes,nspfs,npbfs,wf.spfstart,wf.spfend,ham.huterms,ham.hcterms,pbfs,wf.spfs)
+    opspfs,opips = old_stuff.optools.precompute_ops(wf.nel,wf.nmodes,wf.nspfs,wf.npbfs,wf.spfstart,wf.spfend,ham.ops,pbfs,wf.spfs)
+    ind0 = wf.spfstart[0,0]
+    indf = wf.spfend[0,0]
+    print(np.allclose(copspfs[0][0][ind0:indf],hterms[9]['coeff']*opspfs[0][0]['q']))
+    ind0 = wf.spfstart[1,0]
+    indf = wf.spfend[1,0]
+    print(np.allclose(copspfs[0][1][ind0:indf],hterms[9]['coeff']*opspfs[1][0]['q']))
+    print(np.allclose(copips[0]['opips'][0][1][0],hterms[9]['coeff']*opips[0][1][0]['q']))

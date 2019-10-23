@@ -1,26 +1,7 @@
 import numpy as np
 cimport numpy as cnp
 
-def matelcontract(int nmodes,list modes,ops,opips,cnp.ndarray A, spfovs=None,conj=False):
-    """Computes the contractions required for mctdh coefficient eom.
-
-    Input
-    -----
-    nmodes - int, number of modes in the system
-    modes - list, the modes that are acted on by the hamiltonian term
-    ops - list, the operators that act on the modes in the hamiltonian term
-    opips - list, the list/dictionary structure that stores the inner products
-            of the hamiltonian terms for each spf
-    A - np.ndarray, nmode-dimensional the mctdh A tensor for an electronic state
-    spfovs - the spf overlap matrices between different electronic states
-
-    Output
-    ------
-    np.ndarray - nmode-dimensional tensor, this should have the same shape as A
-
-    Notes
-    -----
-    """
+def matelcontract(int nmodes,list modes,opips,cnp.ndarray A,spfovs=None,conj=False):
     cdef int i
     cdef cnp.ndarray output
     cdef int count
@@ -41,7 +22,14 @@ def matelcontract(int nmodes,list modes,ops,opips,cnp.ndarray A, spfovs=None,con
                 else:
                     output = np.tensordot(output,spfovs[i],axes=[[0],[1]])
             return output
+    elif len(modes) == 1 and spfovs is None:
+        # for umatelterms
+        output = np.tensordot(A,opips[0],axes=[[modes[0]],[1]])
+        outaxes = [i for i in range(nmodes)]
+        outaxes = outaxes[:modes[0]] + [outaxes[-1]] + outaxes[modes[0]:-1]
+        return np.transpose(output, axes=outaxes)
     else:
+        # for umatelterms
         output = A
         count = 0
         opcount = 0
@@ -51,9 +39,9 @@ def matelcontract(int nmodes,list modes,ops,opips,cnp.ndarray A, spfovs=None,con
             if i in modes:
                 unskipped.append( i )
                 if conj:
-                    output = np.tensordot(output,opips[i][ops[opcount]].conj(),axes=[[count],[0]])
+                    output = np.tensordot(output,opips[opcount].conj(),axes=[[count],[0]])
                 else:
-                    output = np.tensordot(output,opips[i][ops[opcount]],axes=[[count],[1]])
+                    output = np.tensordot(output,opips[opcount],axes=[[count],[1]])
                 opcount += 1
             else:
                 if spfovs != None:
@@ -110,7 +98,7 @@ def atensorcontract(int nmodes, list modes, *As, spfovs=None, spfovsconj=False):
     cdef list path1
     cdef list path2
     # generate the initial list of indices, which will all be independent
-    if spfovs == None:
+    if spfovs is None:
         path = [i for i in range(nmodes)]
         for i in range(len(modes)):
             path.remove(modes[i])
@@ -118,7 +106,7 @@ def atensorcontract(int nmodes, list modes, *As, spfovs=None, spfovsconj=False):
             return np.tensordot(As[0].conj(),As[0],axes=[path,path])
         elif len(As) == 2:
             return np.tensordot(As[0].conj(),As[1],axes=[path,path])
-    else:
+    elif isinstance(spfovs,list):
         output = As[0].conj()
         count = 0
         path1 = []
@@ -134,8 +122,24 @@ def atensorcontract(int nmodes, list modes, *As, spfovs=None, spfovsconj=False):
             else:
                 count += 1
         return np.tensordot(output,As[1],axes=[path1,path2])
+    else:
+        output = As[0].conj()
+        count = 0
+        path1 = []
+        path2 = []
+        for i in range(nmodes):
+            if not i in modes:
+                path1.append(i+len(modes)-count)
+                path2.append(i)
+                if spfovsconj:
+                    output = np.tensordot(output,spfovs.conj(),axes=[[count],[1]])
+                else:
+                    output = np.tensordot(output,spfovs,axes=[[count],[0]])
+            else:
+                count += 1
+        return np.tensordot(output,As[1],axes=[path1,path2])
 
-def ahtensorcontract(int nmodes,cnp.ndarray A,cnp.ndarray[complex, ndim=2] h,int order,conj=False):
+def ahtensorcontract(int nmodes,cnp.ndarray A,cnp.ndarray[complex, ndim=2, mode='c'] h,int order,conj=False):
     """Function that does the contraction over remaining MCTDH A tensor with 
     hamiltonian term matrix elements mwhen computing mean field operators.
 
