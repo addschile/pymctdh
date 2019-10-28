@@ -1,6 +1,6 @@
 import numpy as np
 import sys
-sys.path.append('/Users/addisonschile/Software/ode_pymctdh')
+sys.path.append('/Users/addisonschile/Software/pymctdh')
 import units
 from wavefunction import Wavefunction
 from hamiltonian import Hamiltonian
@@ -11,24 +11,24 @@ if __name__ == "__main__":
 
     nel    = 2
     nmodes = 2
-    nspfs = np.array([[6,6],
-                      [4,4]], dtype=int)
-    #nspfs = np.array([[10,10],
-    #                  [10,10]], dtype=int)
-    npbfs = [[22, 32],[21, 12]]
+    #nspfs = np.array([[6,6],
+    #                  [4,4]], dtype=int)
+    ##nspfs = np.array([[20,10],
+    ##                  [20,10]], dtype=int)
+    ##npbfs = [[22, 32],[21, 12]]
     #npbfs = [[12, 22],[12, 7]]
+    nspfs = np.array([[10,10],
+                      [8,8]], dtype=int)
+    npbfs = [[18, 28],[18, 14]]
 
     pbfs = list()
     pbfs.append( PBasis(['ho', npbfs[0], 1.0, 1.0, True],sparse=True) )
     pbfs.append( PBasis(['ho', npbfs[1], 1.0, 1.0, True],sparse=True) )
+    #pbfs.append( PBasis(['ho', npbfs[0], 1.0, 1.0, True]) )
+    #pbfs.append( PBasis(['ho', npbfs[1], 1.0, 1.0, True]) )
 
     wf = Wavefunction(nel, nmodes, nspfs, npbfs)
     wf.generate_ic(1)
-    print(wf.nspfs)
-    print(wf.npbfs)
-    print(wf.npsi)
-    print(wf.psistart)
-    print(wf.psiend)
 
     w10a  =  0.09357
     w6a   =  0.0740
@@ -70,4 +70,6 @@ if __name__ == "__main__":
     dt = 0.5
     times = np.arange(0.0,120.,dt)*units.convert_to('fs')
 
-    wf = vmfpropagate(times, ham, pbfs, wf, 'pyr4_profile_sparse.txt')
+    #wf = vmfpropagate(times, ham, pbfs, wf, 'pyr4_profile_sparse.txt')
+    wf = vmfpropagate(times, ham, pbfs, wf, 'pyr4_profile_sparse_cpp.txt')
+    #wf = vmfpropagate(times, ham, pbfs, wf, 'pyr_profile.txt')

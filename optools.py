@@ -211,6 +211,10 @@ def umatel(nel,nmodes,uopips,A,A_):
     """
     for alpha in range(nel):
         for mode in range(nmodes):
+            #if A_[alpha] is not 0:
+            #    A_[alpha] += matelcontract(nmodes,[mode],[uopips[alpha][mode]],A[alpha])
+            #else:
+            #    A_[alpha] = matelcontract(nmodes,[mode],[uopips[alpha][mode]],A[alpha])
             A_[alpha] += matelcontract(nmodes,[mode],[uopips[alpha][mode]],A[alpha])
 
 def uelmatel(nel,nmodes,huelterms,A,A_):
@@ -223,6 +227,10 @@ def uelmatel(nel,nmodes,huelterms,A,A_):
         for alpha in range(nel):
             mel = compute_el_mes(alpha,alpha,elop)
             if mel != 0.0:
+                #if A_[alpha] is not 0:
+                #    A_[alpha] += mel*coeff*A[alpha]
+                #else:
+                #    A_[alpha] = mel*coeff*A[alpha]
                 A_[alpha] += mel*coeff*A[alpha]
 
 def cmatel(nel,nmodes,hcelterms,copips,spfovs,A,A_):
@@ -251,6 +259,12 @@ def cmatel(nel,nmodes,hcelterms,copips,spfovs,A,A_):
                         opip = opips[beta][alpha]
                         ovs = spfovs[beta][alpha-beta-1]
                         conj = True
+                    #if A_[alpha] is not 0:
+                    #    A_[alpha] += mel*matelcontract(nmodes,modes,opip,A[beta],
+                    #                               spfovs=ovs,conj=conj)
+                    #else:
+                    #    A_[alpha] = mel*matelcontract(nmodes,modes,opip,A[beta],
+                    #                               spfovs=ovs,conj=conj)
                     A_[alpha] += mel*matelcontract(nmodes,modes,opip,A[beta],
                                                spfovs=ovs,conj=conj)
 
@@ -270,6 +284,12 @@ def celmatel(nel,nmodes,hcelterms,spfovs,A,A_):
                     else:
                         ovs  = spfovs[beta][alpha-beta-1]
                         conj = True
+                    #if A_[alpha] is not 0:
+                    #    A_[alpha] += mel*matelcontract(nmodes,None,None,A[beta],
+                    #                         spfovs=ovs,conj=conj)
+                    #else:
+                    #    A_[alpha] = mel*matelcontract(nmodes,None,None,A[beta],
+                    #                         spfovs=ovs,conj=conj)
                     A_[alpha] += mel*matelcontract(nmodes,None,None,A[beta],
                                          spfovs=ovs,conj=conj)
 

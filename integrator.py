@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.linalg import expm
-from eom import eom,eom_coeffs,eom_spfs
+from eom import eom,eom_coeffs,eom_spfs,cmfeom_coeffs
 #from eom import fulleom,eom_coeffs,eom_spfs
 from optools import matel
 from cy.wftools import norm,inner
@@ -229,308 +229,52 @@ def rk(t_start, t_finish, dt, y, ham, pbfs, method='rk8', cmfflag=False, eq=None
 
         t0 += dt
 
-#def rkadapt(t_start, t_finish, dt, y, dy_A, dy_spfs, ham, pbfs, method='rk8', cmfflag=False, eq=None, 
-#       opspfs=None, opips=None, spfovs=None, mfs=None, rhos=None, projs=None):
-#    """Dormand-Prince Runge-Kutta based algorithms with adaptive time-stepping.
-#    """
-#
-#    # get wavefunction info
-#    nel      = y.nel
-#    nmodes   = y.nmodes
-#    nspfs    = y.nspfs
-#    npbfs    = y.npbfs
-#    spfstart = y.spfstart
-#    spfend   = y.spfend
-#
-#    # set initial time of step
-#    t0 = t_start
-#
-#    # get runke-kutta info
-#    if method=='rk5':
-#        nsteps = 6
-#        order = 5
-#        a,b,c,e = get_butcher('rk5')
-#        safe   = 0.9
-#        beta   = 0.04
-#        facdec = 0.25
-#        facinc = 8.0
-#        # step size control stuff
-#        expo1  = 0.2-beta*0.75
-#        facold = safe**(1.0/(expo1-beta))
-#        facdc1 = 1.0/facdec
-#        facin1 = 1.0/facinc
-#    elif method=='rk8':
-#        nsteps = 11
-#        order = 8
-#        a,b,bh,c,e = get_butcher('rk8')
-#        safe   = 0.9
-#        beta   = 0.04
-#        facdec = 0.10
-#        facinc = 6.0
-#        # step size control
-#        expo1  = 0.125-beta*0.2
-#        facold = safe**(1.0/(expo1-beta))
-#        facdc1 = 1.0/facdec
-#        facin1 = 1.0/facinc
-#
-#    # initialize timestep guesser
-#    dtnew = dt
-#
-#    # guess a timestep
-#    if dt == 0.0:
-#        dtnew = get_dt(t_finish-t0,y,dy_A,dy_spfs,ham,pbfs)
-#
-#    ### create useful arrays ###
-#    # eom evaluation
-#    k_A    = np.zeros(nsteps, dtype=np.ndarray)
-#    k_spfs = np.zeros(nsteps, dtype=np.ndarray)
-#    # error evaluation
-#    k_Aerr    = np.zeros(nel, dtype=np.ndarray)
-#    k_spfserr = np.zeros(nel, dtype=np.ndarray)
-#
-#    while abs(t0 - t_finish) > 1.e-12:
-#        # set timestep
-#        dt = dtnew
-#
-#        # change timestep if too large
-#        if dt > (t_finish-t0):
-#            dt = t_finish-t0
-#
-#        # evaluate runge-kutta steps
-#        for i in range(1,nsteps+1):
-#            y_A = y.copy(arg='A')
-#            y_spfs = y.copy(arg='spfs')
-#            for j in range(len(a[i])):
-#                if a[i][j] != 0.0:
-#                    y_A += k_A[j]*a[i][j]*dt
-#                    y_spfs += k_spfs[j]*a[i][j]*dt
-#            k_A[i],k_spfs[i] = eom(t0+c[i]*dt,dt,nel,nmodes,nspfs,npbfs,spfstart,
-#                                   spfend,ham,pbfs,y_A,y_spfs)
-#
-#        # compute output change
-#        for i in range(len(b)):
-#            #if a[-1][i] != 0.0:
-#            if b[i] != 0.0:
-#                for j in range(nel):
-#                    k_A[3][j]    += k_A[i][j]*b[i]*dt
-#                    k_spfs[3][j] += k_spfs[i][j]*b[i]*dt
-#                    #k_A[3][j]    += k_A[i][j]*a[-1][i]*dt
-#                    #k_spfs[3][j] += k_spfs[i][j]*a[-1][i]*dt
-#        for i in range(nel):
-#            k_A[4][i]    = y.A[i] + k_A[3][i]
-#            k_spfs[4][i] = y.spfs[i] + k_spfs[3][i]
-#
-#        # compute error change
-#        for i in range(nel):
-#            k_Aerr[i] = np.zeros_like(y.A[i], dtype=complex)
-#            k_spfserr[i] = np.zeros_like(y.spfs[i], dtype=complex)
-#            for j in range(len(e)):
-#                if e[j] != 0.0:
-#                    k_Aerr[i]    += k_A[i][j]*a[j]*dt
-#                    k_spfserr[i] += k_spfs[i][j]*a[j]*dt
-#
-#        ### compute error ###
-#        # sets weight of error for each element
-#        wt_A    = np.zeros(nel, dtype=np.ndarray)
-#        wt_spfs = np.zeros(nel, dtype=np.ndarray)
-#        for i in range(nel):
-#            wt_A[i]    = tol + tol*np.maximum(y.A[i],k[4][i])
-#            wt_spfs[i] = tol + tol*np.maximum(y.spfs[i],k[4][i])
-#        #CALL SETEWV(ndgl,y,k5,tol,uround,wt)
-#        # computes weighted error
-#        err = 0.0
-#        for i in range(nel):
-#            err += (np.abs(k_Aerr[i])/wt_A[i])**2.
-#            err += (np.abs(k_spfserr[i])/wt_spfs[i])**2.
-#        err = err
-#        #err = wgtnrm(ndgl,kerr,wt)
-#
-#        k_Aerr2 = deepcopy(k_A[3]) #k4
-#        k_Aerr2 += -bh1*k_A[0] #k1
-#        k_Aerr2 += -bh2*k_A[8] #k9
-#        k_Aerr2 += -bh3*k_A[2] #k3
-#        k_spfserr2 = deepcopy(k_spfs[3]) #k4
-#        k_spfserr2 += -bh1*k_spfs[0] #k1
-#        k_spfserr2 += -bh2*k_spfs[8] #k9
-#        k_spfserr2 += -bh3*k_spfs[2] #k3
-#        #CALL zcopy(ndgl,     k4,1,kerr2,1)
-#        #ztmp = DCMPLX(-bh1)
-#        #CALL zaxpy(ndgl,ztmp,k1,1,kerr2,1)
-#        #ztmp = DCMPLX(-bh2)
-#        #CALL zaxpy(ndgl,ztmp,k9,1,kerr2,1)
-#        #ztmp = DCMPLX(-bh3)
-#        #CALL zaxpy(ndgl,ztmp,k3,1,kerr2,1)
-#
-#        err2 = 0.0
-#        for i in range(nel):
-#            err2 += (np.abs(k_Aerr2[i])/wt_A[i])**2.
-#            err2 += (np.abs(k_spfserr2[i])/wt_spfs[i])**2.
-#        #err2 = wgtnrm(ndgl,kerr2,wt)
-#        deno = err + 0.01*err2
-#        if deno <= 0.0: deno = 1.0
-#        err = dt*(err/np.sqrt(deno))
-#
-#        # Computation of new timestep
-#        fac1 = err**expo1
-#        # LUND-stabilization
-#        fac = fac1/facold**beta
-#        # We require  facdec <= hnew/h <= facinc
-#        fac   = max(facin1,MIN(facdc1,fac/safe))
-#        dtnew = dt/fac
-#
-#        if err < 1.0:
-#            # step is accepted
-#            t0 += dt
-#            # update wavefunction
-#            y.A = deepcopy(k_A[4])
-#            y.spfs = deepcopy(k_spfs[4])
-#            # New model evaluation
-#            dy_A,dy_spfs = eom(t0,dt,nel,nmodes,nspfs,npbfs,spfstart,
-#                               spfend,ham,pbfs,y_A,y_spfs)
-#            #CALL ODEMOD(t,k5,k4,mc,mr,mi,ml)
-#            facold = MAX(err,1.0d-4)
-#        else:
-#            dtnew   = dt/min(facdc1,fac1/safe)
-#            # TODO not sure about this
-#            dy_A    = deepcopy(k_A[3])
-#            dy_spfs = deepcopy(k_spfs[3])
-#    #return energy,error
-#
-#def get_dt():
-#    """
-#    """
-#
-#    # precompute stuff
-#    # sets weight of error for each element
-#    wt_A    = np.zeros(nel, dtype=np.ndarray)
-#    wt_spfs = np.zeros(nel, dtype=np.ndarray)
-#    for i in range(nel):
-#        wt_A[i]    = tol + tol*y.A[i]
-#        wt_spfs[i] = tol + tol*y.spfs[i]
-#    #call SETEWV(ndgl,y,y,tol,small,wt)
-#    ynrm = 0.0
-#    dynrm = 0.0
-#    for i in range(nel):
-#        ynrm += (np.abs(y.A[i])/wt_A[i])**2.
-#        ynrm += (np.abs(y.spfs[i])/wt_spfs[i])**2.
-#        dynrm += (np.abs(dy_A[i])/wt_A[i])**2.
-#        dynrm += (np.abs(dy_spfs[i])/wt_spfs[i])**2.
-#    #ynrm  = wgtnrm(ndgl, y, wt)
-#    #dynrm = wgtnrm(ndgl, dy0, wt)
-#    # COMPUTE STEPSIZE FOR EXPLICIT EULER SUCH THAT
-#    # THE INCREMENT IS SMALL COMPARED TO THE SOLUTION
-#    if ((dynrm <= small) or (ynrm <= small)):
-#       dt = 1.0d-6
-#    else:
-#       dt = max(dtmax*small,abs((ynrm/dynrm)*0.01))
-#    dtmx = min(abs(tend-t),dtmax)
-#    dt   = min(dt,dtmx)
-#    # PERFORM AN EXPLICIT EULER STEP
-#    CALL zcopy(ndgl,y,1,y1,1)
-#    ztmp = DCMPLX(h)
-#    CALL zaxpy(ndgl,ztmp,dy0,1,y1,1)
-#    # EVALUATE
-#    CALL ODEMOD(t+h,y1,dy1,mc,mr,mi,ml)
-#    # ESTIMATE THE SECOND DERIVATIVE OF THE SOLUTION
-#    wt_A    = np.zeros(nel, dtype=np.ndarray)
-#    wt_spfs = np.zeros(nel, dtype=np.ndarray)
-#    for i in range(nel):
-#        wt_A[i]    = tol + tol*np.maximum(y.A[i],y1_A)
-#        wt_spfs[i] = tol + tol*np.maximum(y.spfs[i],y1_A)
-#    #CALL SETEWV(ndgl,y,y1,tol,small,wt)
-#    ynrm = 0.0
-#    dynrm = 0.0
-#    for i in range(nel):
-#        ynrm += (np.abs(y.A[i])/wt_A[i])**2.
-#        ynrm += (np.abs(y.spfs[i])/wt_spfs[i])**2.
-#        dynrm += (np.abs(dy_A[i])/wt_A[i])**2.
-#        dynrm += (np.abs(dy_spfs[i])/wt_spfs[i])**2.
-#    ddynrm = 0.0
-#    for i in range(nel):
-#        ddynrm += (abs(dy_A[i]-dy1_A[i])/wt_A[i])**2.
-#    # TODO
-#    ddynrm = np.sqrt(ddynrm)
-#    wgtdst = SQRT(tmp/ndim)
-#    #ddynrm = wgtdst(ndgl,dy0,dy1,wt)
-#    ddynrm = ddynrm/dt
-#    # COMPUTE INITIAL STEP SIZE
-#    dnrmmx = max(abs(ddynrm),dynrm)
-#    if (dnrmmx <= 1.e-15):
-#       dttry = max(1.0e-6,abs(dt)*1.0e-3)
-#    else:
-#       dttry = (0.010/dnrmmx)**(1.0/iord)
-#    dtnew = min(1.0e2*dt,dttry,dtmx)
-#    return dtnew
-#
-## TODO
-#def SETEWV(ndim, y0, y1, tol, small, wt):
-#    """
-#    """
-#    integer    ndim, i
-#    real*8     tol, small, wt(ndim)
-#    complex*16 y0(ndim), y1(ndim)
-#    do i = 1,ndim
-#       wt(i) = tol + tol*max(abs(y0(i)), abs(y1(i)), small)
-#    enddo
-#    return
-#
-#def wgtnrm(ndim, vec, wt):
-#    """
-#    """
-#INTEGER    i,ndim
-#REAL*8     tmp,wt(ndim)
-#COMPLEX*16 vec(ndim)
-#    tmp = 0.d0
-#    DO i = 1,ndim
-#       tmp = tmp + (abs(vec(i))/wt(i))**2
-#    ENDDO
-#    wgtnrm = np.sqrt(tmp/ndim)
-#    return
-
 ################################################################################
 # Generalized krylov subspace method functions                                 #
 ################################################################################
-def lanczos(y, ham, uopips, copips, spfovs, nvecs=5, v0=None, return_evecs=True):
+def lanczos(t, y, npsi, nel, nmodes, nspfs, npbfs, psistart, psiend, ham, uopips, 
+            copips, spfovs, nvecs=5, return_evecs=True):
     """
     """
-    # get wavefunction info
-    nel      = y.nel
-    nmodes   = y.nmodes
-    nspfs    = y.nspfs
-    npbfs    = y.npbfs
-    spfstart = y.spfstart
-    spfend   = y.spfend
-    A        = y.A
-
     # thing to store A tensors
     V = np.zeros(nvecs, np.ndarray)
+    # TODO
     V[0] = A/norm(nel,A)
     T = np.zeros((nvecs,nvecs))
 
     # form krylov vectors and tridiagonal matrix
     for i in range(nvecs-1):
-        V[i+1] = matel(nel,nmodes,nspfs,npbfs,uopips,copips,ham.huelterms,
-                       ham.hcelterms,spfovs,V[i])
+        V[i+1] = cmfeom_coeffs(t,y,npsi,nel,nmodes,nspfs,npbfs,psistart,psiend,
+                    ham.huelterms,ham.hcelterms,uopips,copips,spfovs)
+        #V[i+1] = matel(nel,nmodes,nspfs,npbfs,uopips,copips,ham.huelterms,
+        #               ham.hcelterms,spfovs,V[i])
         # compute alpha 
+        # TODO
         T[i,i] = inner(nel,V[i],V[i+1]).real
         if i>0:
             V[i+1] += -T[i,i]*V[i] - T[i-1,i]*V[i-1]
         else:
             V[i+1] += -T[i,i]*V[i]
         # normalize previous vector
+        # TODO
         nvprev = norm(nel,V[i+1])
         V[i+1] /= nvprev
         # compute beta
         T[i,i+1] = nvprev
         T[i+1,i] = T[i,i+1]
-    T[-1,-1] = inner(nel,V[-1], matel(nel,nmodes,nspfs,npbfs,uopips,copips,
-                                      ham.huelterms,ham.hcelterms,spfovs,V[-1])).real
+    Vtmp = cmfeom_coeffs(t,y,npsi,nel,nmodes,nspfs,npbfs,psistart,psiend,
+               ham.huelterms,ham.hcelterms,uopips,copips,spfovs)
+    # TODO
+    T[-1,-1] = inner(nel,V[-1], Vtmp)
+    #T[-1,-1] = inner(nel,V[-1], matel(nel,nmodes,nspfs,npbfs,uopips,copips,
+    #                                  ham.huelterms,ham.hcelterms,spfovs,V[-1])).real
 
     if return_evecs:
         return T , V
     else:
         return T
 
+# TODO
 def arnoldi(y, ham, uopips, copips, spfovs, nvecs=5, v0=None, return_evecs=True):
     """
     """
@@ -583,8 +327,3 @@ def krylov_prop(t_start, t_finish, dt, y, ham, uopips, copips, spfovs,
     else:
         T , V = lanczos(y, ham, uopips, copips, spfovs, nvecs=20)
     y.A = propagate(V, T, dt)
-    #psiout = propagate(V, T, dt)
-    #if return_all:
-    #    return psiout , T , V
-    #else:
-    #    return psiout

@@ -1,6 +1,7 @@
 import numpy as np
 cimport numpy as cnp
 
+#
 def matelcontract(int nmodes,list modes,opips,cnp.ndarray A,spfovs=None,conj=False):
     cdef int i
     cdef cnp.ndarray output

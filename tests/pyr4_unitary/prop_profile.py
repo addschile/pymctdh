@@ -1,6 +1,6 @@
 import numpy as np
 import sys
-sys.path.append('/Users/addisonschile/Software/ode_pymctdh')
+sys.path.append('/Users/addisonschile/Software/pymctdh')
 import units
 from wavefunction import Wavefunction
 from hamiltonian import Hamiltonian
@@ -20,6 +20,10 @@ if __name__ == "__main__":
     pbfs.append( PBasis(['ho', 32, 1.0, 1.0]) )
     pbfs.append( PBasis(['ho', 21, 1.0, 1.0]) )
     pbfs.append( PBasis(['ho', 12, 1.0, 1.0]) )
+    #pbfs.append( PBasis(['ho', 22, 1.0, 1.0],sparse=True) )
+    #pbfs.append( PBasis(['ho', 32, 1.0, 1.0],sparse=True) )
+    #pbfs.append( PBasis(['ho', 21, 1.0, 1.0],sparse=True) )
+    #pbfs.append( PBasis(['ho', 12, 1.0, 1.0],sparse=True) )
 
     wf = Wavefunction(nel, nmodes, nspfs, npbfs)
     wf.generate_ic(1)
@@ -61,3 +65,4 @@ if __name__ == "__main__":
     times = np.arange(0.0,120.,dt)*units.convert_to('fs')
 
     wf = vmfpropagate(times, ham, pbfs, wf, 'pyr4_profile.txt')
+    #wf = vmfpropagate(times, ham, pbfs, wf, 'pyr4_profile_sparse.txt')

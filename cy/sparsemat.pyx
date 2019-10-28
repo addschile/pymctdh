@@ -1,44 +1,31 @@
 import numpy as np
 cimport numpy as cnp
 cimport cython
-from cython.parallel import parallel,prange
+cimport openmp
+
+cdef extern from "spmv.h" nogil:
+    void zspmv(int nrows,int * IA,int * JA,double * data,double complex * vec,
+               double complex * out,int nthr)
 
 class CSRmat(object):
-    def __init__(self, data, IA, JA):
-        self.data = data
-        self.IA = IA
-        self.JA = JA
-        self.nnz = self.IA[-1]
-        self.nrows = len(self.IA)-1
+    def __init__(self, data, IA, JA, nthreads=1):
+        self.data     = data
+        self.IA       = IA
+        self.JA       = JA
+        self.nnz      = self.IA[-1]
+        self.nrows    = len(self.IA)-1
+        self.nthreads = nthreads
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef void _matvec(long nrows,long[::1] IA,long[::1] JA,double[::1] data,complex[::1] vec,complex[::1] outvec) nogil:
+cpdef cnp.ndarray[complex, ndim=1, mode='c'] matvec(object mat,complex[::1] vec):
     """
     """
-    cdef int i,j,ncol,col_ind,d_ind
-    d_ind = 0
-    for i in range(nrows):
-        ncol = IA[i+1]-IA[i]
-        for j in range(ncol):
-            col_ind = JA[d_ind]
-            outvec[i] = outvec[i] + data[d_ind]*vec[col_ind]
-            d_ind += 1
-    # TODO parallelize this 
-    #with nogil, parallel():
-    #    for i in prange(nrows, nogil=True):
-    #        ncol = IA[i+1]-IA[i]
-    #        for j in range(ncol):
-    #            col_ind = JA[d_ind]
-    #            outvec[i] = outvec[i] + data[d_ind]*vec[col_ind]
-    #            d_ind += 1
-    return
-
-def matvec(object mat, cnp.ndarray[complex, ndim=1, mode='c'] vec):
-    """
-    """
+    cdef int[::1] IA = mat.IA
+    cdef int[::1] JA = mat.JA
+    cdef double[::1] data = mat.data
     cdef cnp.ndarray[complex, ndim=1, mode='c'] outvec = np.zeros_like(vec, dtype=complex)
-    _matvec(mat.nrows,mat.IA,mat.JA,mat.data,vec,outvec)
+    zspmv(mat.nrows,&IA[0],&JA[0],&data[0],&vec[0],&outvec[0],mat.nthreads)
     return outvec
 
 def make_csr(int n,cnp.ndarray[double, ndim=2] op):
@@ -58,7 +45,7 @@ def make_csr(int n,cnp.ndarray[double, ndim=2] op):
         data += list(op[i,JA_tmp])
         JA += list(JA_tmp)
     cdef cnp.ndarray[double, ndim=1, mode='c'] _data = np.array(data)
-    cdef cnp.ndarray[long, ndim=1, mode='c'] _IA = np.array(IA, dtype=int)
-    cdef cnp.ndarray[long, ndim=1, mode='c'] _JA = np.array(JA, dtype=int)
-    cdef object opout = CSRmat(_data,_IA,_JA)
+    cdef cnp.ndarray[int, ndim=1, mode='c'] _IA = np.array(IA, dtype=np.intc)
+    cdef cnp.ndarray[int, ndim=1, mode='c'] _JA = np.array(JA, dtype=np.intc)
+    cdef object opout = CSRmat(_data,_IA,_JA,openmp.omp_get_num_threads())
     return opout

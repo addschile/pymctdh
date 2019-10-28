@@ -8,21 +8,32 @@ ext_modules = [
     Extension(
         "wftools",
         ["wftools.pyx"],
+        #extra_compile_args = ["-O3", "-funroll-loops"],
     ),
     Extension(
         "tensorutils",
         ["tensorutils.pyx"],
     ),
+#    Extension(
+#        "sparsemat",
+#        ["sparsemat.pyx"],
+#        #extra_compile_args = ["-O3", "-funroll-loops"],
+#        #extra_compile_args=['-fopenmp'],
+#        #extra_link_args=['-fopenmp'],
+#    )
     Extension(
         "sparsemat",
-        ["sparsemat.pyx"],
+        ["sparsemat.pyx","spmv.cpp"],
+        extra_compile_args = ["-lomp"],
+        extra_link_args = ["-lomp"],
+        language="c++",
         #extra_compile_args=['-fopenmp'],
         #extra_link_args=['-fopenmp'],
     )
 ]
 
 setup(
-    name='sparsmat',
+    name='cyext',
     ext_modules=cythonize(ext_modules),
     include_dirs = [numpy.get_include(),scipy.get_include()]
 )

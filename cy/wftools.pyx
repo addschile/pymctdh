@@ -2,6 +2,7 @@ import numpy as np
 cimport numpy as cnp
 cimport cython
 cimport scipy.linalg.cython_blas as blas
+#from cython import parallel,prange
 
 def norm2(int nel,cnp.ndarray A):
     """
@@ -21,6 +22,25 @@ def inner(int nel,cnp.ndarray A1,cnp.ndarray A2):
         innr += np.sum(A1[i].conj()*A2[i])
     return innr
 
+# TODO
+#@cython.boundscheck(False)
+#@cython.wraparound(False)
+#cdef void _spf_innerprod_par(int nspf_l,int nspf_r,int npbf,complex[::1] spfs1,complex[::1] spfs2,complex[:,::1] spfsout) nogil:
+#    """
+#    """
+#    cdef int i,j
+#    cdef int ind_i,ind_j
+#    cdef int incx = 1
+#    cdef int incy = 1
+#    ind_i = 0
+#    for i in range(nspf_l):
+#        ind_j = 0
+#        for j in range(nspf_r):
+#            spfsout[i,j] = blas.zdotc(&npbf,&spfs1[ind_i],&incx,&spfs2[ind_j],&incy)
+#            ind_j += npbf
+#        ind_i += npbf
+#    return
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef void _spf_innerprod(int nspf_l,int nspf_r,int npbf,complex[::1] spfs1,complex[::1] spfs2,complex[:,::1] spfsout) nogil:
@@ -34,7 +54,7 @@ cdef void _spf_innerprod(int nspf_l,int nspf_r,int npbf,complex[::1] spfs1,compl
     for i in range(nspf_l):
         ind_j = 0
         for j in range(nspf_r):
-            spfsout[i,j] = blas.zdotc(&npbf,&spfs1[ind_i:ind_i+npbf][0],&incx,&spfs2[ind_j:ind_j+npbf][0],&incy)
+            spfsout[i,j] = blas.zdotc(&npbf,&spfs1[ind_i],&incx,&spfs2[ind_j],&incy)
             ind_j += npbf
         ind_i += npbf
     return
@@ -48,6 +68,26 @@ def spf_innerprod(int nspf_l,int nspf_r,int npbf,cnp.ndarray[complex, ndim=1, mo
     cdef cnp.ndarray[complex, ndim=2, mode='c'] spfsout = np.zeros((nspf_l,nspf_r),dtype=complex)
     _spf_innerprod(nspf_l,nspf_r,npbf,spfs1,spfs2,spfsout)
     return spfsout
+
+# TODO
+#@cython.boundscheck(False)
+#@cython.wraparound(False)
+#cdef void _multAtens_par(int nspf_l,int nspf_r,int npbf,complex[:,::1] A,complex[::1] spfs,complex[::1] spfsout) nogil:
+#    """Computes the multiplication of the A tensor with the single-particle 
+#       functions.
+#    """
+#    cdef int i,j
+#    cdef int ind_i,ind_j
+#    cdef int incx = 1
+#    cdef int incy = 1
+#    ind_i = 0
+#    for i in range(nspf_l):
+#        ind_j = 0
+#        for j in range(nspf_r):
+#            blas.zaxpy(&npbf,&A[i,j],&spfs[ind_j],&incx,&spfsout[ind_i],&incy)
+#            ind_j += npbf
+#        ind_i += npbf
+#    return
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -63,7 +103,7 @@ cdef void _multAtens(int nspf_l,int nspf_r,int npbf,complex[:,::1] A,complex[::1
     for i in range(nspf_l):
         ind_j = 0
         for j in range(nspf_r):
-            blas.zaxpy(&npbf,&A[i,j],&spfs[ind_j:ind_j+npbf][0],&incx,&spfsout[ind_i:ind_i+npbf][0],&incy)
+            blas.zaxpy(&npbf,&A[i,j],&spfs[ind_j],&incx,&spfsout[ind_i],&incy)
             ind_j += npbf
         ind_i += npbf
     return
@@ -91,13 +131,31 @@ def invert_density_matrix(cnp.ndarray[complex, ndim=2, mode='c'] rho, regulariza
     if regularization=='default':
         try:
             w,v = np.linalg.eigh(rho)
-            #w,v = np.linalg.eig(rho)
         except:
             print(rho)
             raise ValueError('rho was not diagonalized')
         w += eps*np.exp(-abs(w)/eps)
         w = 1./w
     return np.dot(v, np.dot(np.diag(w), v.conj().T))
+
+# TODO
+#@cython.boundscheck(False)
+#@cython.wraparound(False)
+#cdef void _act_density_par(int nspf,int npbf,complex[:,::1] rho,complex[::1] spfs,complex[::1] spfsout) nogil:
+#    """Act density matrix on the single particle functions.
+#    """
+#    cdef int i,j
+#    cdef int ind_i,ind_j
+#    cdef int incx = 1
+#    cdef int incy = 1
+#    ind_i = 0
+#    for i in range(nspf):
+#        ind_j = 0
+#        for j in range(nspf):
+#            blas.zaxpy(&npbf,&rho[i,j],&spfs[ind_j],&incx,&spfsout[ind_i],&incy)
+#            ind_j += npbf
+#        ind_i += npbf
+#    return
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -112,7 +170,7 @@ cdef void _act_density(int nspf,int npbf,complex[:,::1] rho,complex[::1] spfs,co
     for i in range(nspf):
         ind_j = 0
         for j in range(nspf):
-            blas.zaxpy(&npbf,&rho[i,j],&spfs[ind_j:ind_j+npbf][0],&incx,&spfsout[ind_i:ind_i+npbf][0],&incy)
+            blas.zaxpy(&npbf,&rho[i,j],&spfs[ind_j],&incx,&spfsout[ind_i],&incy)
             ind_j += npbf
         ind_i += npbf
     return
@@ -134,7 +192,7 @@ cdef void _compute_projector(int nspf,int npbf,complex[::1] spfs,complex[:,::1] 
     cdef int incy = 1
     cdef double alpha = 1.0
     for i in range(nspf):
-        blas.zher('U',&npbf,&alpha,&spfs[ind:ind+npbf][0],&incx,&proj[0,0],&npbf)
+        blas.zher('U',&npbf,&alpha,&spfs[ind],&incx,&proj[0,0],&npbf)
         ind += npbf
     return
 
@@ -156,8 +214,8 @@ cdef void _act_projector(int nspf,int npbf,complex[:,::1] proj,complex[::1] spfs
     cdef int incx = 1
     cdef int incy = 1
     for i in range(nspf):
-        blas.zcopy(&npbf,&spfsout[ind:ind+npbf][0],&incx,&spfs[0],&incy)
-        blas.zhemv('U',&npbf,&alpha,&proj[0,0],&npbf,&spfs[0],&incx,&beta,&spfsout[ind:ind+npbf][0],&incy)
+        blas.zcopy(&npbf,&spfsout[ind],&incx,&spfs[0],&incy)
+        blas.zhemv('U',&npbf,&alpha,&proj[0,0],&npbf,&spfs[0],&incx,&beta,&spfsout[ind],&incy)
         ind += npbf
     return
 
@@ -166,6 +224,62 @@ def act_projector(int nspf,int npbf,cnp.ndarray[complex, ndim=2, mode='c'] proj,
     """
     cdef cnp.ndarray[complex, ndim=1, mode='c'] spfs = np.zeros(npbf, dtype=complex)
     _act_projector(nspf,npbf,proj,spfs,spfsout)
+    return
+
+# TODO
+#@cython.boundscheck(False)
+#@cython.wraparound(False)
+#cdef void _project_par(int nspf,int npbf,complex[::1] spf_tmp,complex[::1] spfs,complex[::1] spfsout) nogil:
+#    """
+#    """
+#    cdef int i,j,k
+#    cdef int ind_i,ind_j
+#    cdef int incx = 1
+#    cdef int incy = 1
+#    cdef complex inp = 0.0
+#    cdef complex mone = -1.0
+#    cdef complex zero = 0.0
+#    ind_i = 0
+#    for i in range(nspf):
+#        ind_j = 0
+#        for j in range(nspf):
+#            inp = blas.zdotc(&npbf,&spfs[ind_j],&incx,&spfsout[ind_i],&incy)
+#            blas.zaxpy(&npbf,&inp,&spfs[ind_j],&incx,&spf_tmp[0],&incy)
+#            ind_j += npbf
+#        blas.zaxpy(&npbf,&mone,&spf_tmp[0],&incx,&spfsout[ind_i],&incy)
+#        blas.zscal(&npbf,&zero,&spf_tmp[0],&incx)
+#        ind_i += npbf
+#    return
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+cdef void _project(int nspf,int npbf,complex[::1] spf_tmp,complex[::1] spfs,complex[::1] spfsout) nogil:
+    """
+    """
+    cdef int i,j,k
+    cdef int ind_i,ind_j
+    cdef int incx = 1
+    cdef int incy = 1
+    cdef complex inp = 0.0
+    cdef complex mone = -1.0
+    cdef complex zero = 0.0
+    ind_i = 0
+    for i in range(nspf):
+        ind_j = 0
+        for j in range(nspf):
+            inp = blas.zdotc(&npbf,&spfs[ind_j],&incx,&spfsout[ind_i],&incy)
+            blas.zaxpy(&npbf,&inp,&spfs[ind_j],&incx,&spf_tmp[0],&incy)
+            ind_j += npbf
+        blas.zaxpy(&npbf,&mone,&spf_tmp[0],&incx,&spfsout[ind_i],&incy)
+        blas.zscal(&npbf,&zero,&spf_tmp[0],&incx)
+        ind_i += npbf
+    return
+
+def project(int nspf,int npbf,cnp.ndarray[complex, ndim=1, mode='c'] spfs,cnp.ndarray[complex, ndim=1, mode='c'] spfsout):
+    """
+    """
+    cdef cnp.ndarray[complex, ndim=1, mode='c'] spf_tmp = np.zeros(npbf, dtype=complex)
+    _project(nspf,npbf,spf_tmp,spfs,spfsout)
     return
 
 def overlap_matrices(int nel,int nmodes,cnp.ndarray[long, ndim=2, mode='c'] nspfs,cnp.ndarray[long, ndim=1, mode='c'] npbfs,cnp.ndarray[long, ndim=2, mode='c'] spfstart,cnp.ndarray[object, ndim=1, mode='c'] spfs):

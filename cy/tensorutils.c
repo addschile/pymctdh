@@ -1348,6 +1348,32 @@ static CYTHON_INLINE PyObject* __Pyx_PyObject_CallOneArg(PyObject *func, PyObjec
 /* ExtTypeTest.proto */
 static CYTHON_INLINE int __Pyx_TypeTest(PyObject *obj, PyTypeObject *type);
 
+/* ListCompAppend.proto */
+#if CYTHON_USE_PYLIST_INTERNALS && CYTHON_ASSUME_SAFE_MACROS
+static CYTHON_INLINE int __Pyx_ListComp_Append(PyObject* list, PyObject* x) {
+    PyListObject* L = (PyListObject*) list;
+    Py_ssize_t len = Py_SIZE(list);
+    if (likely(L->allocated > len)) {
+        Py_INCREF(x);
+        PyList_SET_ITEM(list, len, x);
+        Py_SIZE(list) = len+1;
+        return 0;
+    }
+    return PyList_Append(list, x);
+}
+#else
+#define __Pyx_ListComp_Append(L,x) PyList_Append(L,x)
+#endif
+
+/* SliceTupleAndList.proto */
+#if CYTHON_COMPILING_IN_CPYTHON
+static CYTHON_INLINE PyObject* __Pyx_PyList_GetSlice(PyObject* src, Py_ssize_t start, Py_ssize_t stop);
+static CYTHON_INLINE PyObject* __Pyx_PyTuple_GetSlice(PyObject* src, Py_ssize_t start, Py_ssize_t stop);
+#else
+#define __Pyx_PyList_GetSlice(seq, start, stop)   PySequence_GetSlice(seq, start, stop)
+#define __Pyx_PyTuple_GetSlice(seq, start, stop)  PySequence_GetSlice(seq, start, stop)
+#endif
+
 /* PySequenceContains.proto */
 static CYTHON_INLINE int __Pyx_PySequence_ContainsTF(PyObject* item, PyObject* seq, int eq) {
     int result = PySequence_Contains(seq, item);
@@ -1369,30 +1395,6 @@ static CYTHON_INLINE int __Pyx_PyList_Append(PyObject* list, PyObject* x) {
 }
 #else
 #define __Pyx_PyList_Append(L,x) PyList_Append(L,x)
-#endif
-
-/* ObjectGetItem.proto */
-#if CYTHON_USE_TYPE_SLOTS
-static CYTHON_INLINE PyObject *__Pyx_PyObject_GetItem(PyObject *obj, PyObject* key);
-#else
-#define __Pyx_PyObject_GetItem(obj, key)  PyObject_GetItem(obj, key)
-#endif
-
-/* ListCompAppend.proto */
-#if CYTHON_USE_PYLIST_INTERNALS && CYTHON_ASSUME_SAFE_MACROS
-static CYTHON_INLINE int __Pyx_ListComp_Append(PyObject* list, PyObject* x) {
-    PyListObject* L = (PyListObject*) list;
-    Py_ssize_t len = Py_SIZE(list);
-    if (likely(L->allocated > len)) {
-        Py_INCREF(x);
-        PyList_SET_ITEM(list, len, x);
-        Py_SIZE(list) = len+1;
-        return 0;
-    }
-    return PyList_Append(list, x);
-}
-#else
-#define __Pyx_ListComp_Append(L,x) PyList_Append(L,x)
 #endif
 
 /* UnpackUnboundCMethod.proto */
@@ -1768,7 +1770,6 @@ static const char __pyx_k_h[] = "h";
 static const char __pyx_k_i[] = "i";
 static const char __pyx_k_As[] = "As";
 static const char __pyx_k_np[] = "np";
-static const char __pyx_k_ops[] = "ops";
 static const char __pyx_k_axes[] = "axes";
 static const char __pyx_k_conj[] = "conj";
 static const char __pyx_k_main[] = "__main__";
@@ -1847,7 +1848,6 @@ static PyObject *__pyx_kp_s_numpy_core_multiarray_failed_to;
 static PyObject *__pyx_kp_s_numpy_core_umath_failed_to_impor;
 static PyObject *__pyx_n_s_opcount;
 static PyObject *__pyx_n_s_opips;
-static PyObject *__pyx_n_s_ops;
 static PyObject *__pyx_n_s_order;
 static PyObject *__pyx_n_s_outaxes;
 static PyObject *__pyx_n_s_outorder;
@@ -1867,7 +1867,7 @@ static PyObject *__pyx_n_s_test;
 static PyObject *__pyx_n_s_transpose;
 static PyObject *__pyx_kp_u_unknown_dtype_code_in_numpy_pxd;
 static PyObject *__pyx_n_s_unskipped;
-static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__pyx_self, int __pyx_v_nmodes, PyObject *__pyx_v_modes, PyObject *__pyx_v_ops, PyObject *__pyx_v_opips, PyArrayObject *__pyx_v_A, PyObject *__pyx_v_spfovs, PyObject *__pyx_v_conj); /* proto */
+static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__pyx_self, int __pyx_v_nmodes, PyObject *__pyx_v_modes, PyObject *__pyx_v_opips, PyArrayObject *__pyx_v_A, PyObject *__pyx_v_spfovs, PyObject *__pyx_v_conj); /* proto */
 static PyObject *__pyx_pf_11tensorutils_2atensorcontract(CYTHON_UNUSED PyObject *__pyx_self, int __pyx_v_nmodes, PyObject *__pyx_v_modes, PyObject *__pyx_v_spfovs, PyObject *__pyx_v_spfovsconj, PyObject *__pyx_v_As); /* proto */
 static PyObject *__pyx_pf_11tensorutils_4ahtensorcontract(CYTHON_UNUSED PyObject *__pyx_self, int __pyx_v_nmodes, PyArrayObject *__pyx_v_A, PyArrayObject *__pyx_v_h, int __pyx_v_order, PyObject *__pyx_v_conj); /* proto */
 static int __pyx_pf_5numpy_7ndarray___getbuffer__(PyArrayObject *__pyx_v_self, Py_buffer *__pyx_v_info, int __pyx_v_flags); /* proto */
@@ -1891,22 +1891,20 @@ static PyObject *__pyx_codeobj__11;
 static PyObject *__pyx_codeobj__13;
 /* Late includes */
 
-/* "tensorutils.pyx":4
- * cimport numpy as cnp
+/* "tensorutils.pyx":5
  * 
- * def matelcontract(int nmodes,list modes,ops,opips,cnp.ndarray A, spfovs=None,conj=False):             # <<<<<<<<<<<<<<
- *     """Computes the contractions required for mctdh coefficient eom.
- * 
+ * #
+ * def matelcontract(int nmodes,list modes,opips,cnp.ndarray A,spfovs=None,conj=False):             # <<<<<<<<<<<<<<
+ *     cdef int i
+ *     cdef cnp.ndarray output
  */
 
 /* Python wrapper */
 static PyObject *__pyx_pw_11tensorutils_1matelcontract(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
-static char __pyx_doc_11tensorutils_matelcontract[] = "Computes the contractions required for mctdh coefficient eom.\n\n    Input\n    -----\n    nmodes - int, number of modes in the system\n    modes - list, the modes that are acted on by the hamiltonian term\n    ops - list, the operators that act on the modes in the hamiltonian term\n    opips - list, the list/dictionary structure that stores the inner products\n            of the hamiltonian terms for each spf\n    A - np.ndarray, nmode-dimensional the mctdh A tensor for an electronic state\n    spfovs - the spf overlap matrices between different electronic states\n\n    Output\n    ------\n    np.ndarray - nmode-dimensional tensor, this should have the same shape as A\n\n    Notes\n    -----\n    ";
-static PyMethodDef __pyx_mdef_11tensorutils_1matelcontract = {"matelcontract", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_11tensorutils_1matelcontract, METH_VARARGS|METH_KEYWORDS, __pyx_doc_11tensorutils_matelcontract};
+static PyMethodDef __pyx_mdef_11tensorutils_1matelcontract = {"matelcontract", (PyCFunction)(void*)(PyCFunctionWithKeywords)__pyx_pw_11tensorutils_1matelcontract, METH_VARARGS|METH_KEYWORDS, 0};
 static PyObject *__pyx_pw_11tensorutils_1matelcontract(PyObject *__pyx_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   int __pyx_v_nmodes;
   PyObject *__pyx_v_modes = 0;
-  PyObject *__pyx_v_ops = 0;
   PyObject *__pyx_v_opips = 0;
   PyArrayObject *__pyx_v_A = 0;
   PyObject *__pyx_v_spfovs = 0;
@@ -1915,16 +1913,14 @@ static PyObject *__pyx_pw_11tensorutils_1matelcontract(PyObject *__pyx_self, PyO
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("matelcontract (wrapper)", 0);
   {
-    static PyObject **__pyx_pyargnames[] = {&__pyx_n_s_nmodes,&__pyx_n_s_modes,&__pyx_n_s_ops,&__pyx_n_s_opips,&__pyx_n_s_A,&__pyx_n_s_spfovs,&__pyx_n_s_conj,0};
-    PyObject* values[7] = {0,0,0,0,0,0,0};
-    values[5] = ((PyObject *)Py_None);
-    values[6] = ((PyObject *)Py_False);
+    static PyObject **__pyx_pyargnames[] = {&__pyx_n_s_nmodes,&__pyx_n_s_modes,&__pyx_n_s_opips,&__pyx_n_s_A,&__pyx_n_s_spfovs,&__pyx_n_s_conj,0};
+    PyObject* values[6] = {0,0,0,0,0,0};
+    values[4] = ((PyObject *)Py_None);
+    values[5] = ((PyObject *)Py_False);
     if (unlikely(__pyx_kwds)) {
       Py_ssize_t kw_args;
       const Py_ssize_t pos_args = PyTuple_GET_SIZE(__pyx_args);
       switch (pos_args) {
-        case  7: values[6] = PyTuple_GET_ITEM(__pyx_args, 6);
-        CYTHON_FALLTHROUGH;
         case  6: values[5] = PyTuple_GET_ITEM(__pyx_args, 5);
         CYTHON_FALLTHROUGH;
         case  5: values[4] = PyTuple_GET_ITEM(__pyx_args, 4);
@@ -1949,50 +1945,43 @@ static PyObject *__pyx_pw_11tensorutils_1matelcontract(PyObject *__pyx_self, PyO
         case  1:
         if (likely((values[1] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_modes)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("matelcontract", 0, 5, 7, 1); __PYX_ERR(0, 4, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("matelcontract", 0, 4, 6, 1); __PYX_ERR(0, 5, __pyx_L3_error)
         }
         CYTHON_FALLTHROUGH;
         case  2:
-        if (likely((values[2] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_ops)) != 0)) kw_args--;
+        if (likely((values[2] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_opips)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("matelcontract", 0, 5, 7, 2); __PYX_ERR(0, 4, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("matelcontract", 0, 4, 6, 2); __PYX_ERR(0, 5, __pyx_L3_error)
         }
         CYTHON_FALLTHROUGH;
         case  3:
-        if (likely((values[3] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_opips)) != 0)) kw_args--;
+        if (likely((values[3] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_A)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("matelcontract", 0, 5, 7, 3); __PYX_ERR(0, 4, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("matelcontract", 0, 4, 6, 3); __PYX_ERR(0, 5, __pyx_L3_error)
         }
         CYTHON_FALLTHROUGH;
         case  4:
-        if (likely((values[4] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_A)) != 0)) kw_args--;
-        else {
-          __Pyx_RaiseArgtupleInvalid("matelcontract", 0, 5, 7, 4); __PYX_ERR(0, 4, __pyx_L3_error)
+        if (kw_args > 0) {
+          PyObject* value = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_spfovs);
+          if (value) { values[4] = value; kw_args--; }
         }
         CYTHON_FALLTHROUGH;
         case  5:
         if (kw_args > 0) {
-          PyObject* value = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_spfovs);
-          if (value) { values[5] = value; kw_args--; }
-        }
-        CYTHON_FALLTHROUGH;
-        case  6:
-        if (kw_args > 0) {
           PyObject* value = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_conj);
-          if (value) { values[6] = value; kw_args--; }
+          if (value) { values[5] = value; kw_args--; }
         }
       }
       if (unlikely(kw_args > 0)) {
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "matelcontract") < 0)) __PYX_ERR(0, 4, __pyx_L3_error)
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "matelcontract") < 0)) __PYX_ERR(0, 5, __pyx_L3_error)
       }
     } else {
       switch (PyTuple_GET_SIZE(__pyx_args)) {
-        case  7: values[6] = PyTuple_GET_ITEM(__pyx_args, 6);
-        CYTHON_FALLTHROUGH;
         case  6: values[5] = PyTuple_GET_ITEM(__pyx_args, 5);
         CYTHON_FALLTHROUGH;
         case  5: values[4] = PyTuple_GET_ITEM(__pyx_args, 4);
-        values[3] = PyTuple_GET_ITEM(__pyx_args, 3);
+        CYTHON_FALLTHROUGH;
+        case  4: values[3] = PyTuple_GET_ITEM(__pyx_args, 3);
         values[2] = PyTuple_GET_ITEM(__pyx_args, 2);
         values[1] = PyTuple_GET_ITEM(__pyx_args, 1);
         values[0] = PyTuple_GET_ITEM(__pyx_args, 0);
@@ -2000,25 +1989,24 @@ static PyObject *__pyx_pw_11tensorutils_1matelcontract(PyObject *__pyx_self, PyO
         default: goto __pyx_L5_argtuple_error;
       }
     }
-    __pyx_v_nmodes = __Pyx_PyInt_As_int(values[0]); if (unlikely((__pyx_v_nmodes == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 4, __pyx_L3_error)
+    __pyx_v_nmodes = __Pyx_PyInt_As_int(values[0]); if (unlikely((__pyx_v_nmodes == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 5, __pyx_L3_error)
     __pyx_v_modes = ((PyObject*)values[1]);
-    __pyx_v_ops = values[2];
-    __pyx_v_opips = values[3];
-    __pyx_v_A = ((PyArrayObject *)values[4]);
-    __pyx_v_spfovs = values[5];
-    __pyx_v_conj = values[6];
+    __pyx_v_opips = values[2];
+    __pyx_v_A = ((PyArrayObject *)values[3]);
+    __pyx_v_spfovs = values[4];
+    __pyx_v_conj = values[5];
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("matelcontract", 0, 5, 7, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 4, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("matelcontract", 0, 4, 6, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 5, __pyx_L3_error)
   __pyx_L3_error:;
   __Pyx_AddTraceback("tensorutils.matelcontract", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_modes), (&PyList_Type), 1, "modes", 1))) __PYX_ERR(0, 4, __pyx_L1_error)
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_A), __pyx_ptype_5numpy_ndarray, 1, "A", 0))) __PYX_ERR(0, 4, __pyx_L1_error)
-  __pyx_r = __pyx_pf_11tensorutils_matelcontract(__pyx_self, __pyx_v_nmodes, __pyx_v_modes, __pyx_v_ops, __pyx_v_opips, __pyx_v_A, __pyx_v_spfovs, __pyx_v_conj);
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_modes), (&PyList_Type), 1, "modes", 1))) __PYX_ERR(0, 5, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_A), __pyx_ptype_5numpy_ndarray, 1, "A", 0))) __PYX_ERR(0, 5, __pyx_L1_error)
+  __pyx_r = __pyx_pf_11tensorutils_matelcontract(__pyx_self, __pyx_v_nmodes, __pyx_v_modes, __pyx_v_opips, __pyx_v_A, __pyx_v_spfovs, __pyx_v_conj);
 
   /* function exit code */
   goto __pyx_L0;
@@ -2029,7 +2017,7 @@ static PyObject *__pyx_pw_11tensorutils_1matelcontract(PyObject *__pyx_self, PyO
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__pyx_self, int __pyx_v_nmodes, PyObject *__pyx_v_modes, PyObject *__pyx_v_ops, PyObject *__pyx_v_opips, PyArrayObject *__pyx_v_A, PyObject *__pyx_v_spfovs, PyObject *__pyx_v_conj) {
+static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__pyx_self, int __pyx_v_nmodes, PyObject *__pyx_v_modes, PyObject *__pyx_v_opips, PyArrayObject *__pyx_v_A, PyObject *__pyx_v_spfovs, PyObject *__pyx_v_conj) {
   int __pyx_v_i;
   PyArrayObject *__pyx_v_output = 0;
   int __pyx_v_count;
@@ -2050,37 +2038,38 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
   PyObject *__pyx_t_8 = NULL;
   PyObject *__pyx_t_9 = NULL;
   PyObject *__pyx_t_10 = NULL;
-  int __pyx_t_11;
+  Py_ssize_t __pyx_t_11;
   int __pyx_t_12;
-  Py_ssize_t __pyx_t_13;
+  int __pyx_t_13;
   Py_ssize_t __pyx_t_14;
+  int __pyx_t_15;
   __Pyx_RefNannySetupContext("matelcontract", 0);
 
-  /* "tensorutils.pyx":32
+  /* "tensorutils.pyx":14
  *     cdef list outorder
  *     cdef list outaxes
  *     if modes == None: # purely electronic operator             # <<<<<<<<<<<<<<
  *         if spfovs == None:
  *             # no contraction should occur
  */
-  __pyx_t_1 = PyObject_RichCompare(__pyx_v_modes, Py_None, Py_EQ); __Pyx_XGOTREF(__pyx_t_1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 32, __pyx_L1_error)
-  __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 32, __pyx_L1_error)
+  __pyx_t_1 = PyObject_RichCompare(__pyx_v_modes, Py_None, Py_EQ); __Pyx_XGOTREF(__pyx_t_1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 14, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 14, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   if (__pyx_t_2) {
 
-    /* "tensorutils.pyx":33
+    /* "tensorutils.pyx":15
  *     cdef list outaxes
  *     if modes == None: # purely electronic operator
  *         if spfovs == None:             # <<<<<<<<<<<<<<
  *             # no contraction should occur
  *             return A
  */
-    __pyx_t_1 = PyObject_RichCompare(__pyx_v_spfovs, Py_None, Py_EQ); __Pyx_XGOTREF(__pyx_t_1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 33, __pyx_L1_error)
-    __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 33, __pyx_L1_error)
+    __pyx_t_1 = PyObject_RichCompare(__pyx_v_spfovs, Py_None, Py_EQ); __Pyx_XGOTREF(__pyx_t_1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 15, __pyx_L1_error)
+    __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 15, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     if (__pyx_t_2) {
 
-      /* "tensorutils.pyx":35
+      /* "tensorutils.pyx":17
  *         if spfovs == None:
  *             # no contraction should occur
  *             return A             # <<<<<<<<<<<<<<
@@ -2092,7 +2081,7 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
       __pyx_r = ((PyObject *)__pyx_v_A);
       goto __pyx_L0;
 
-      /* "tensorutils.pyx":33
+      /* "tensorutils.pyx":15
  *     cdef list outaxes
  *     if modes == None: # purely electronic operator
  *         if spfovs == None:             # <<<<<<<<<<<<<<
@@ -2101,7 +2090,7 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
  */
     }
 
-    /* "tensorutils.pyx":37
+    /* "tensorutils.pyx":19
  *             return A
  *         else:
  *             output = A             # <<<<<<<<<<<<<<
@@ -2112,7 +2101,7 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
       __Pyx_INCREF(((PyObject *)__pyx_v_A));
       __pyx_v_output = __pyx_v_A;
 
-      /* "tensorutils.pyx":38
+      /* "tensorutils.pyx":20
  *         else:
  *             output = A
  *             for i in range(nmodes):             # <<<<<<<<<<<<<<
@@ -2124,31 +2113,31 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
       for (__pyx_t_5 = 0; __pyx_t_5 < __pyx_t_4; __pyx_t_5+=1) {
         __pyx_v_i = __pyx_t_5;
 
-        /* "tensorutils.pyx":39
+        /* "tensorutils.pyx":21
  *             output = A
  *             for i in range(nmodes):
  *                 if conj:             # <<<<<<<<<<<<<<
  *                     output = np.tensordot(output,spfovs[i].conj(),axes=[[0],[0]])
  *                 else:
  */
-        __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_v_conj); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 39, __pyx_L1_error)
+        __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_v_conj); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 21, __pyx_L1_error)
         if (__pyx_t_2) {
 
-          /* "tensorutils.pyx":40
+          /* "tensorutils.pyx":22
  *             for i in range(nmodes):
  *                 if conj:
  *                     output = np.tensordot(output,spfovs[i].conj(),axes=[[0],[0]])             # <<<<<<<<<<<<<<
  *                 else:
  *                     output = np.tensordot(output,spfovs[i],axes=[[0],[1]])
  */
-          __Pyx_GetModuleGlobalName(__pyx_t_1, __pyx_n_s_np); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 40, __pyx_L1_error)
+          __Pyx_GetModuleGlobalName(__pyx_t_1, __pyx_n_s_np); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 22, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_1);
-          __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 40, __pyx_L1_error)
+          __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 22, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_6);
           __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-          __pyx_t_7 = __Pyx_GetItemInt(__pyx_v_spfovs, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 40, __pyx_L1_error)
+          __pyx_t_7 = __Pyx_GetItemInt(__pyx_v_spfovs, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 22, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_7);
-          __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_t_7, __pyx_n_s_conj); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 40, __pyx_L1_error)
+          __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_t_7, __pyx_n_s_conj); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 22, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_8);
           __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
           __pyx_t_7 = NULL;
@@ -2163,10 +2152,10 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
           }
           __pyx_t_1 = (__pyx_t_7) ? __Pyx_PyObject_CallOneArg(__pyx_t_8, __pyx_t_7) : __Pyx_PyObject_CallNoArg(__pyx_t_8);
           __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
-          if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 40, __pyx_L1_error)
+          if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 22, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_1);
           __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-          __pyx_t_8 = PyTuple_New(2); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 40, __pyx_L1_error)
+          __pyx_t_8 = PyTuple_New(2); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 22, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_8);
           __Pyx_INCREF(((PyObject *)__pyx_v_output));
           __Pyx_GIVEREF(((PyObject *)__pyx_v_output));
@@ -2174,19 +2163,19 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
           __Pyx_GIVEREF(__pyx_t_1);
           PyTuple_SET_ITEM(__pyx_t_8, 1, __pyx_t_1);
           __pyx_t_1 = 0;
-          __pyx_t_1 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 40, __pyx_L1_error)
+          __pyx_t_1 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 22, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_1);
-          __pyx_t_7 = PyList_New(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 40, __pyx_L1_error)
+          __pyx_t_7 = PyList_New(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 22, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_7);
           __Pyx_INCREF(__pyx_int_0);
           __Pyx_GIVEREF(__pyx_int_0);
           PyList_SET_ITEM(__pyx_t_7, 0, __pyx_int_0);
-          __pyx_t_9 = PyList_New(1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 40, __pyx_L1_error)
+          __pyx_t_9 = PyList_New(1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 22, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_9);
           __Pyx_INCREF(__pyx_int_0);
           __Pyx_GIVEREF(__pyx_int_0);
           PyList_SET_ITEM(__pyx_t_9, 0, __pyx_int_0);
-          __pyx_t_10 = PyList_New(2); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 40, __pyx_L1_error)
+          __pyx_t_10 = PyList_New(2); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 22, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_10);
           __Pyx_GIVEREF(__pyx_t_7);
           PyList_SET_ITEM(__pyx_t_10, 0, __pyx_t_7);
@@ -2194,18 +2183,18 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
           PyList_SET_ITEM(__pyx_t_10, 1, __pyx_t_9);
           __pyx_t_7 = 0;
           __pyx_t_9 = 0;
-          if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_axes, __pyx_t_10) < 0) __PYX_ERR(0, 40, __pyx_L1_error)
+          if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_axes, __pyx_t_10) < 0) __PYX_ERR(0, 22, __pyx_L1_error)
           __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-          __pyx_t_10 = __Pyx_PyObject_Call(__pyx_t_6, __pyx_t_8, __pyx_t_1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 40, __pyx_L1_error)
+          __pyx_t_10 = __Pyx_PyObject_Call(__pyx_t_6, __pyx_t_8, __pyx_t_1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 22, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_10);
           __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
           __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
           __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-          if (!(likely(((__pyx_t_10) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_10, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 40, __pyx_L1_error)
+          if (!(likely(((__pyx_t_10) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_10, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 22, __pyx_L1_error)
           __Pyx_DECREF_SET(__pyx_v_output, ((PyArrayObject *)__pyx_t_10));
           __pyx_t_10 = 0;
 
-          /* "tensorutils.pyx":39
+          /* "tensorutils.pyx":21
  *             output = A
  *             for i in range(nmodes):
  *                 if conj:             # <<<<<<<<<<<<<<
@@ -2215,22 +2204,22 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
           goto __pyx_L7;
         }
 
-        /* "tensorutils.pyx":42
+        /* "tensorutils.pyx":24
  *                     output = np.tensordot(output,spfovs[i].conj(),axes=[[0],[0]])
  *                 else:
  *                     output = np.tensordot(output,spfovs[i],axes=[[0],[1]])             # <<<<<<<<<<<<<<
  *             return output
- *     else:
+ *     elif len(modes) == 1 and spfovs is None:
  */
         /*else*/ {
-          __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_n_s_np); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 42, __pyx_L1_error)
+          __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_n_s_np); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 24, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_10);
-          __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 42, __pyx_L1_error)
+          __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 24, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_1);
           __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-          __pyx_t_10 = __Pyx_GetItemInt(__pyx_v_spfovs, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 42, __pyx_L1_error)
+          __pyx_t_10 = __Pyx_GetItemInt(__pyx_v_spfovs, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 24, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_10);
-          __pyx_t_8 = PyTuple_New(2); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 42, __pyx_L1_error)
+          __pyx_t_8 = PyTuple_New(2); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 24, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_8);
           __Pyx_INCREF(((PyObject *)__pyx_v_output));
           __Pyx_GIVEREF(((PyObject *)__pyx_v_output));
@@ -2238,19 +2227,19 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
           __Pyx_GIVEREF(__pyx_t_10);
           PyTuple_SET_ITEM(__pyx_t_8, 1, __pyx_t_10);
           __pyx_t_10 = 0;
-          __pyx_t_10 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 42, __pyx_L1_error)
+          __pyx_t_10 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 24, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_10);
-          __pyx_t_6 = PyList_New(1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 42, __pyx_L1_error)
+          __pyx_t_6 = PyList_New(1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 24, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_6);
           __Pyx_INCREF(__pyx_int_0);
           __Pyx_GIVEREF(__pyx_int_0);
           PyList_SET_ITEM(__pyx_t_6, 0, __pyx_int_0);
-          __pyx_t_9 = PyList_New(1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 42, __pyx_L1_error)
+          __pyx_t_9 = PyList_New(1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 24, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_9);
           __Pyx_INCREF(__pyx_int_1);
           __Pyx_GIVEREF(__pyx_int_1);
           PyList_SET_ITEM(__pyx_t_9, 0, __pyx_int_1);
-          __pyx_t_7 = PyList_New(2); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 42, __pyx_L1_error)
+          __pyx_t_7 = PyList_New(2); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 24, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_7);
           __Pyx_GIVEREF(__pyx_t_6);
           PyList_SET_ITEM(__pyx_t_7, 0, __pyx_t_6);
@@ -2258,26 +2247,26 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
           PyList_SET_ITEM(__pyx_t_7, 1, __pyx_t_9);
           __pyx_t_6 = 0;
           __pyx_t_9 = 0;
-          if (PyDict_SetItem(__pyx_t_10, __pyx_n_s_axes, __pyx_t_7) < 0) __PYX_ERR(0, 42, __pyx_L1_error)
+          if (PyDict_SetItem(__pyx_t_10, __pyx_n_s_axes, __pyx_t_7) < 0) __PYX_ERR(0, 24, __pyx_L1_error)
           __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-          __pyx_t_7 = __Pyx_PyObject_Call(__pyx_t_1, __pyx_t_8, __pyx_t_10); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 42, __pyx_L1_error)
+          __pyx_t_7 = __Pyx_PyObject_Call(__pyx_t_1, __pyx_t_8, __pyx_t_10); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 24, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_7);
           __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
           __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
           __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-          if (!(likely(((__pyx_t_7) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_7, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 42, __pyx_L1_error)
+          if (!(likely(((__pyx_t_7) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_7, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 24, __pyx_L1_error)
           __Pyx_DECREF_SET(__pyx_v_output, ((PyArrayObject *)__pyx_t_7));
           __pyx_t_7 = 0;
         }
         __pyx_L7:;
       }
 
-      /* "tensorutils.pyx":43
+      /* "tensorutils.pyx":25
  *                 else:
  *                     output = np.tensordot(output,spfovs[i],axes=[[0],[1]])
  *             return output             # <<<<<<<<<<<<<<
- *     else:
- *         output = A
+ *     elif len(modes) == 1 and spfovs is None:
+ *         # for umatelterms
  */
       __Pyx_XDECREF(__pyx_r);
       __Pyx_INCREF(((PyObject *)__pyx_v_output));
@@ -2285,7 +2274,7 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
       goto __pyx_L0;
     }
 
-    /* "tensorutils.pyx":32
+    /* "tensorutils.pyx":14
  *     cdef list outorder
  *     cdef list outaxes
  *     if modes == None: # purely electronic operator             # <<<<<<<<<<<<<<
@@ -2294,9 +2283,209 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
  */
   }
 
-  /* "tensorutils.pyx":45
+  /* "tensorutils.pyx":26
+ *                     output = np.tensordot(output,spfovs[i],axes=[[0],[1]])
  *             return output
+ *     elif len(modes) == 1 and spfovs is None:             # <<<<<<<<<<<<<<
+ *         # for umatelterms
+ *         output = np.tensordot(A,opips[0],axes=[[modes[0]],[1]])
+ */
+  if (unlikely(__pyx_v_modes == Py_None)) {
+    PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
+    __PYX_ERR(0, 26, __pyx_L1_error)
+  }
+  __pyx_t_11 = PyList_GET_SIZE(__pyx_v_modes); if (unlikely(__pyx_t_11 == ((Py_ssize_t)-1))) __PYX_ERR(0, 26, __pyx_L1_error)
+  __pyx_t_12 = ((__pyx_t_11 == 1) != 0);
+  if (__pyx_t_12) {
+  } else {
+    __pyx_t_2 = __pyx_t_12;
+    goto __pyx_L8_bool_binop_done;
+  }
+  __pyx_t_12 = (__pyx_v_spfovs == Py_None);
+  __pyx_t_13 = (__pyx_t_12 != 0);
+  __pyx_t_2 = __pyx_t_13;
+  __pyx_L8_bool_binop_done:;
+  if (__pyx_t_2) {
+
+    /* "tensorutils.pyx":28
+ *     elif len(modes) == 1 and spfovs is None:
+ *         # for umatelterms
+ *         output = np.tensordot(A,opips[0],axes=[[modes[0]],[1]])             # <<<<<<<<<<<<<<
+ *         outaxes = [i for i in range(nmodes)]
+ *         outaxes = outaxes[:modes[0]] + [outaxes[-1]] + outaxes[modes[0]:-1]
+ */
+    __Pyx_GetModuleGlobalName(__pyx_t_7, __pyx_n_s_np); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 28, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_7, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 28, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_10);
+    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+    __pyx_t_7 = __Pyx_GetItemInt(__pyx_v_opips, 0, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 28, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __pyx_t_8 = PyTuple_New(2); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 28, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_8);
+    __Pyx_INCREF(((PyObject *)__pyx_v_A));
+    __Pyx_GIVEREF(((PyObject *)__pyx_v_A));
+    PyTuple_SET_ITEM(__pyx_t_8, 0, ((PyObject *)__pyx_v_A));
+    __Pyx_GIVEREF(__pyx_t_7);
+    PyTuple_SET_ITEM(__pyx_t_8, 1, __pyx_t_7);
+    __pyx_t_7 = 0;
+    __pyx_t_7 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 28, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    if (unlikely(__pyx_v_modes == Py_None)) {
+      PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
+      __PYX_ERR(0, 28, __pyx_L1_error)
+    }
+    __pyx_t_1 = __Pyx_GetItemInt_List(__pyx_v_modes, 0, long, 1, __Pyx_PyInt_From_long, 1, 0, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 28, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_9 = PyList_New(1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 28, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_9);
+    __Pyx_GIVEREF(__pyx_t_1);
+    PyList_SET_ITEM(__pyx_t_9, 0, __pyx_t_1);
+    __pyx_t_1 = 0;
+    __pyx_t_1 = PyList_New(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 28, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __Pyx_INCREF(__pyx_int_1);
+    __Pyx_GIVEREF(__pyx_int_1);
+    PyList_SET_ITEM(__pyx_t_1, 0, __pyx_int_1);
+    __pyx_t_6 = PyList_New(2); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 28, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __Pyx_GIVEREF(__pyx_t_9);
+    PyList_SET_ITEM(__pyx_t_6, 0, __pyx_t_9);
+    __Pyx_GIVEREF(__pyx_t_1);
+    PyList_SET_ITEM(__pyx_t_6, 1, __pyx_t_1);
+    __pyx_t_9 = 0;
+    __pyx_t_1 = 0;
+    if (PyDict_SetItem(__pyx_t_7, __pyx_n_s_axes, __pyx_t_6) < 0) __PYX_ERR(0, 28, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __pyx_t_6 = __Pyx_PyObject_Call(__pyx_t_10, __pyx_t_8, __pyx_t_7); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 28, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+    __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+    if (!(likely(((__pyx_t_6) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_6, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 28, __pyx_L1_error)
+    __pyx_v_output = ((PyArrayObject *)__pyx_t_6);
+    __pyx_t_6 = 0;
+
+    /* "tensorutils.pyx":29
+ *         # for umatelterms
+ *         output = np.tensordot(A,opips[0],axes=[[modes[0]],[1]])
+ *         outaxes = [i for i in range(nmodes)]             # <<<<<<<<<<<<<<
+ *         outaxes = outaxes[:modes[0]] + [outaxes[-1]] + outaxes[modes[0]:-1]
+ *         return np.transpose(output, axes=outaxes)
+ */
+    __pyx_t_6 = PyList_New(0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 29, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __pyx_t_3 = __pyx_v_nmodes;
+    __pyx_t_4 = __pyx_t_3;
+    for (__pyx_t_5 = 0; __pyx_t_5 < __pyx_t_4; __pyx_t_5+=1) {
+      __pyx_v_i = __pyx_t_5;
+      __pyx_t_7 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 29, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
+      if (unlikely(__Pyx_ListComp_Append(__pyx_t_6, (PyObject*)__pyx_t_7))) __PYX_ERR(0, 29, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+    }
+    __pyx_v_outaxes = ((PyObject*)__pyx_t_6);
+    __pyx_t_6 = 0;
+
+    /* "tensorutils.pyx":30
+ *         output = np.tensordot(A,opips[0],axes=[[modes[0]],[1]])
+ *         outaxes = [i for i in range(nmodes)]
+ *         outaxes = outaxes[:modes[0]] + [outaxes[-1]] + outaxes[modes[0]:-1]             # <<<<<<<<<<<<<<
+ *         return np.transpose(output, axes=outaxes)
  *     else:
+ */
+    if (unlikely(__pyx_v_modes == Py_None)) {
+      PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
+      __PYX_ERR(0, 30, __pyx_L1_error)
+    }
+    __pyx_t_6 = __Pyx_GetItemInt_List(__pyx_v_modes, 0, long, 1, __Pyx_PyInt_From_long, 1, 0, 1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 30, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __pyx_t_2 = (__pyx_t_6 == Py_None);
+    if (__pyx_t_2) {
+      __pyx_t_11 = PY_SSIZE_T_MAX;
+    } else {
+      __pyx_t_14 = __Pyx_PyIndex_AsSsize_t(__pyx_t_6); if (unlikely((__pyx_t_14 == (Py_ssize_t)-1) && PyErr_Occurred())) __PYX_ERR(0, 30, __pyx_L1_error)
+      __pyx_t_11 = __pyx_t_14;
+    }
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __pyx_t_6 = __Pyx_PyList_GetSlice(__pyx_v_outaxes, 0, __pyx_t_11); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 30, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __pyx_t_7 = __Pyx_GetItemInt_List(__pyx_v_outaxes, -1L, long, 1, __Pyx_PyInt_From_long, 1, 1, 1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 30, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __pyx_t_8 = PyList_New(1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 30, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_8);
+    __Pyx_GIVEREF(__pyx_t_7);
+    PyList_SET_ITEM(__pyx_t_8, 0, __pyx_t_7);
+    __pyx_t_7 = 0;
+    __pyx_t_7 = PyNumber_Add(__pyx_t_6, __pyx_t_8); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 30, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+    if (unlikely(__pyx_v_modes == Py_None)) {
+      PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
+      __PYX_ERR(0, 30, __pyx_L1_error)
+    }
+    __pyx_t_8 = __Pyx_GetItemInt_List(__pyx_v_modes, 0, long, 1, __Pyx_PyInt_From_long, 1, 0, 1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 30, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_8);
+    __pyx_t_2 = (__pyx_t_8 == Py_None);
+    if (__pyx_t_2) {
+      __pyx_t_11 = 0;
+    } else {
+      __pyx_t_14 = __Pyx_PyIndex_AsSsize_t(__pyx_t_8); if (unlikely((__pyx_t_14 == (Py_ssize_t)-1) && PyErr_Occurred())) __PYX_ERR(0, 30, __pyx_L1_error)
+      __pyx_t_11 = __pyx_t_14;
+    }
+    __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+    __pyx_t_8 = __Pyx_PyList_GetSlice(__pyx_v_outaxes, __pyx_t_11, -1L); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 30, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_8);
+    __pyx_t_6 = PyNumber_Add(__pyx_t_7, __pyx_t_8); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 30, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+    __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+    __Pyx_DECREF_SET(__pyx_v_outaxes, ((PyObject*)__pyx_t_6));
+    __pyx_t_6 = 0;
+
+    /* "tensorutils.pyx":31
+ *         outaxes = [i for i in range(nmodes)]
+ *         outaxes = outaxes[:modes[0]] + [outaxes[-1]] + outaxes[modes[0]:-1]
+ *         return np.transpose(output, axes=outaxes)             # <<<<<<<<<<<<<<
+ *     else:
+ *         # for umatelterms
+ */
+    __Pyx_XDECREF(__pyx_r);
+    __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_np); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 31, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_transpose); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 31, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_8);
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __pyx_t_6 = PyTuple_New(1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 31, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __Pyx_INCREF(((PyObject *)__pyx_v_output));
+    __Pyx_GIVEREF(((PyObject *)__pyx_v_output));
+    PyTuple_SET_ITEM(__pyx_t_6, 0, ((PyObject *)__pyx_v_output));
+    __pyx_t_7 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 31, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    if (PyDict_SetItem(__pyx_t_7, __pyx_n_s_axes, __pyx_v_outaxes) < 0) __PYX_ERR(0, 31, __pyx_L1_error)
+    __pyx_t_10 = __Pyx_PyObject_Call(__pyx_t_8, __pyx_t_6, __pyx_t_7); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 31, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_10);
+    __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+    __pyx_r = __pyx_t_10;
+    __pyx_t_10 = 0;
+    goto __pyx_L0;
+
+    /* "tensorutils.pyx":26
+ *                     output = np.tensordot(output,spfovs[i],axes=[[0],[1]])
+ *             return output
+ *     elif len(modes) == 1 and spfovs is None:             # <<<<<<<<<<<<<<
+ *         # for umatelterms
+ *         output = np.tensordot(A,opips[0],axes=[[modes[0]],[1]])
+ */
+  }
+
+  /* "tensorutils.pyx":34
+ *     else:
+ *         # for umatelterms
  *         output = A             # <<<<<<<<<<<<<<
  *         count = 0
  *         opcount = 0
@@ -2305,8 +2494,8 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
     __Pyx_INCREF(((PyObject *)__pyx_v_A));
     __pyx_v_output = __pyx_v_A;
 
-    /* "tensorutils.pyx":46
- *     else:
+    /* "tensorutils.pyx":35
+ *         # for umatelterms
  *         output = A
  *         count = 0             # <<<<<<<<<<<<<<
  *         opcount = 0
@@ -2314,7 +2503,7 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
  */
     __pyx_v_count = 0;
 
-    /* "tensorutils.pyx":47
+    /* "tensorutils.pyx":36
  *         output = A
  *         count = 0
  *         opcount = 0             # <<<<<<<<<<<<<<
@@ -2323,31 +2512,31 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
  */
     __pyx_v_opcount = 0;
 
-    /* "tensorutils.pyx":48
+    /* "tensorutils.pyx":37
  *         count = 0
  *         opcount = 0
  *         skipped = []             # <<<<<<<<<<<<<<
  *         unskipped = []
  *         for i in range(nmodes):
  */
-    __pyx_t_7 = PyList_New(0); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 48, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_7);
-    __pyx_v_skipped = ((PyObject*)__pyx_t_7);
-    __pyx_t_7 = 0;
+    __pyx_t_10 = PyList_New(0); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 37, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_10);
+    __pyx_v_skipped = ((PyObject*)__pyx_t_10);
+    __pyx_t_10 = 0;
 
-    /* "tensorutils.pyx":49
+    /* "tensorutils.pyx":38
  *         opcount = 0
  *         skipped = []
  *         unskipped = []             # <<<<<<<<<<<<<<
  *         for i in range(nmodes):
  *             if i in modes:
  */
-    __pyx_t_7 = PyList_New(0); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 49, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_7);
-    __pyx_v_unskipped = ((PyObject*)__pyx_t_7);
-    __pyx_t_7 = 0;
+    __pyx_t_10 = PyList_New(0); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 38, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_10);
+    __pyx_v_unskipped = ((PyObject*)__pyx_t_10);
+    __pyx_t_10 = 0;
 
-    /* "tensorutils.pyx":50
+    /* "tensorutils.pyx":39
  *         skipped = []
  *         unskipped = []
  *         for i in range(nmodes):             # <<<<<<<<<<<<<<
@@ -2359,215 +2548,203 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
     for (__pyx_t_5 = 0; __pyx_t_5 < __pyx_t_4; __pyx_t_5+=1) {
       __pyx_v_i = __pyx_t_5;
 
-      /* "tensorutils.pyx":51
+      /* "tensorutils.pyx":40
  *         unskipped = []
  *         for i in range(nmodes):
  *             if i in modes:             # <<<<<<<<<<<<<<
  *                 unskipped.append( i )
  *                 if conj:
  */
-      __pyx_t_7 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 51, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_7);
-      __pyx_t_2 = (__Pyx_PySequence_ContainsTF(__pyx_t_7, __pyx_v_modes, Py_EQ)); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 51, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-      __pyx_t_11 = (__pyx_t_2 != 0);
-      if (__pyx_t_11) {
+      __pyx_t_10 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 40, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_10);
+      __pyx_t_2 = (__Pyx_PySequence_ContainsTF(__pyx_t_10, __pyx_v_modes, Py_EQ)); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 40, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+      __pyx_t_13 = (__pyx_t_2 != 0);
+      if (__pyx_t_13) {
 
-        /* "tensorutils.pyx":52
+        /* "tensorutils.pyx":41
  *         for i in range(nmodes):
  *             if i in modes:
  *                 unskipped.append( i )             # <<<<<<<<<<<<<<
  *                 if conj:
- *                     output = np.tensordot(output,opips[i][ops[opcount]].conj(),axes=[[count],[0]])
+ *                     output = np.tensordot(output,opips[opcount].conj(),axes=[[count],[0]])
  */
-        __pyx_t_7 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 52, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_7);
-        __pyx_t_12 = __Pyx_PyList_Append(__pyx_v_unskipped, __pyx_t_7); if (unlikely(__pyx_t_12 == ((int)-1))) __PYX_ERR(0, 52, __pyx_L1_error)
-        __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+        __pyx_t_10 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 41, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_10);
+        __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_unskipped, __pyx_t_10); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 41, __pyx_L1_error)
+        __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
 
-        /* "tensorutils.pyx":53
+        /* "tensorutils.pyx":42
  *             if i in modes:
  *                 unskipped.append( i )
  *                 if conj:             # <<<<<<<<<<<<<<
- *                     output = np.tensordot(output,opips[i][ops[opcount]].conj(),axes=[[count],[0]])
+ *                     output = np.tensordot(output,opips[opcount].conj(),axes=[[count],[0]])
  *                 else:
  */
-        __pyx_t_11 = __Pyx_PyObject_IsTrue(__pyx_v_conj); if (unlikely(__pyx_t_11 < 0)) __PYX_ERR(0, 53, __pyx_L1_error)
-        if (__pyx_t_11) {
+        __pyx_t_13 = __Pyx_PyObject_IsTrue(__pyx_v_conj); if (unlikely(__pyx_t_13 < 0)) __PYX_ERR(0, 42, __pyx_L1_error)
+        if (__pyx_t_13) {
 
-          /* "tensorutils.pyx":54
+          /* "tensorutils.pyx":43
  *                 unskipped.append( i )
  *                 if conj:
- *                     output = np.tensordot(output,opips[i][ops[opcount]].conj(),axes=[[count],[0]])             # <<<<<<<<<<<<<<
+ *                     output = np.tensordot(output,opips[opcount].conj(),axes=[[count],[0]])             # <<<<<<<<<<<<<<
  *                 else:
- *                     output = np.tensordot(output,opips[i][ops[opcount]],axes=[[count],[1]])
+ *                     output = np.tensordot(output,opips[opcount],axes=[[count],[1]])
  */
-          __Pyx_GetModuleGlobalName(__pyx_t_7, __pyx_n_s_np); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 54, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_7);
-          __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_7, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 54, __pyx_L1_error)
+          __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_n_s_np); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 43, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_10);
-          __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-          __pyx_t_8 = __Pyx_GetItemInt(__pyx_v_opips, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 54, __pyx_L1_error)
+          __pyx_t_7 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 43, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_7);
+          __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+          __pyx_t_6 = __Pyx_GetItemInt(__pyx_v_opips, __pyx_v_opcount, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 43, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_6);
+          __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_conj); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 43, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_8);
-          __pyx_t_1 = __Pyx_GetItemInt(__pyx_v_ops, __pyx_v_opcount, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 54, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_1);
-          __pyx_t_9 = __Pyx_PyObject_GetItem(__pyx_t_8, __pyx_t_1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 54, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_9);
-          __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-          __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-          __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_t_9, __pyx_n_s_conj); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 54, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_1);
-          __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-          __pyx_t_9 = NULL;
-          if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_1))) {
-            __pyx_t_9 = PyMethod_GET_SELF(__pyx_t_1);
-            if (likely(__pyx_t_9)) {
-              PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_1);
-              __Pyx_INCREF(__pyx_t_9);
+          __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+          __pyx_t_6 = NULL;
+          if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_8))) {
+            __pyx_t_6 = PyMethod_GET_SELF(__pyx_t_8);
+            if (likely(__pyx_t_6)) {
+              PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_8);
+              __Pyx_INCREF(__pyx_t_6);
               __Pyx_INCREF(function);
-              __Pyx_DECREF_SET(__pyx_t_1, function);
+              __Pyx_DECREF_SET(__pyx_t_8, function);
             }
           }
-          __pyx_t_7 = (__pyx_t_9) ? __Pyx_PyObject_CallOneArg(__pyx_t_1, __pyx_t_9) : __Pyx_PyObject_CallNoArg(__pyx_t_1);
-          __Pyx_XDECREF(__pyx_t_9); __pyx_t_9 = 0;
-          if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 54, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_7);
-          __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-          __pyx_t_1 = PyTuple_New(2); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 54, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_1);
+          __pyx_t_10 = (__pyx_t_6) ? __Pyx_PyObject_CallOneArg(__pyx_t_8, __pyx_t_6) : __Pyx_PyObject_CallNoArg(__pyx_t_8);
+          __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
+          if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 43, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_10);
+          __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+          __pyx_t_8 = PyTuple_New(2); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 43, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_8);
           __Pyx_INCREF(((PyObject *)__pyx_v_output));
           __Pyx_GIVEREF(((PyObject *)__pyx_v_output));
-          PyTuple_SET_ITEM(__pyx_t_1, 0, ((PyObject *)__pyx_v_output));
-          __Pyx_GIVEREF(__pyx_t_7);
-          PyTuple_SET_ITEM(__pyx_t_1, 1, __pyx_t_7);
-          __pyx_t_7 = 0;
-          __pyx_t_7 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 54, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_7);
-          __pyx_t_9 = __Pyx_PyInt_From_int(__pyx_v_count); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 54, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_9);
-          __pyx_t_8 = PyList_New(1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 54, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_8);
-          __Pyx_GIVEREF(__pyx_t_9);
-          PyList_SET_ITEM(__pyx_t_8, 0, __pyx_t_9);
-          __pyx_t_9 = 0;
-          __pyx_t_9 = PyList_New(1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 54, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_9);
+          PyTuple_SET_ITEM(__pyx_t_8, 0, ((PyObject *)__pyx_v_output));
+          __Pyx_GIVEREF(__pyx_t_10);
+          PyTuple_SET_ITEM(__pyx_t_8, 1, __pyx_t_10);
+          __pyx_t_10 = 0;
+          __pyx_t_10 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 43, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_10);
+          __pyx_t_6 = __Pyx_PyInt_From_int(__pyx_v_count); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 43, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_6);
+          __pyx_t_1 = PyList_New(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 43, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_1);
+          __Pyx_GIVEREF(__pyx_t_6);
+          PyList_SET_ITEM(__pyx_t_1, 0, __pyx_t_6);
+          __pyx_t_6 = 0;
+          __pyx_t_6 = PyList_New(1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 43, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_6);
           __Pyx_INCREF(__pyx_int_0);
           __Pyx_GIVEREF(__pyx_int_0);
-          PyList_SET_ITEM(__pyx_t_9, 0, __pyx_int_0);
-          __pyx_t_6 = PyList_New(2); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 54, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_6);
-          __Pyx_GIVEREF(__pyx_t_8);
-          PyList_SET_ITEM(__pyx_t_6, 0, __pyx_t_8);
-          __Pyx_GIVEREF(__pyx_t_9);
-          PyList_SET_ITEM(__pyx_t_6, 1, __pyx_t_9);
-          __pyx_t_8 = 0;
-          __pyx_t_9 = 0;
-          if (PyDict_SetItem(__pyx_t_7, __pyx_n_s_axes, __pyx_t_6) < 0) __PYX_ERR(0, 54, __pyx_L1_error)
-          __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-          __pyx_t_6 = __Pyx_PyObject_Call(__pyx_t_10, __pyx_t_1, __pyx_t_7); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 54, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_6);
-          __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-          __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-          __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-          if (!(likely(((__pyx_t_6) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_6, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 54, __pyx_L1_error)
-          __Pyx_DECREF_SET(__pyx_v_output, ((PyArrayObject *)__pyx_t_6));
+          PyList_SET_ITEM(__pyx_t_6, 0, __pyx_int_0);
+          __pyx_t_9 = PyList_New(2); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 43, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_9);
+          __Pyx_GIVEREF(__pyx_t_1);
+          PyList_SET_ITEM(__pyx_t_9, 0, __pyx_t_1);
+          __Pyx_GIVEREF(__pyx_t_6);
+          PyList_SET_ITEM(__pyx_t_9, 1, __pyx_t_6);
+          __pyx_t_1 = 0;
           __pyx_t_6 = 0;
+          if (PyDict_SetItem(__pyx_t_10, __pyx_n_s_axes, __pyx_t_9) < 0) __PYX_ERR(0, 43, __pyx_L1_error)
+          __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+          __pyx_t_9 = __Pyx_PyObject_Call(__pyx_t_7, __pyx_t_8, __pyx_t_10); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 43, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_9);
+          __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+          __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+          __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+          if (!(likely(((__pyx_t_9) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_9, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 43, __pyx_L1_error)
+          __Pyx_DECREF_SET(__pyx_v_output, ((PyArrayObject *)__pyx_t_9));
+          __pyx_t_9 = 0;
 
-          /* "tensorutils.pyx":53
+          /* "tensorutils.pyx":42
  *             if i in modes:
  *                 unskipped.append( i )
  *                 if conj:             # <<<<<<<<<<<<<<
- *                     output = np.tensordot(output,opips[i][ops[opcount]].conj(),axes=[[count],[0]])
+ *                     output = np.tensordot(output,opips[opcount].conj(),axes=[[count],[0]])
  *                 else:
  */
-          goto __pyx_L11;
+          goto __pyx_L15;
         }
 
-        /* "tensorutils.pyx":56
- *                     output = np.tensordot(output,opips[i][ops[opcount]].conj(),axes=[[count],[0]])
+        /* "tensorutils.pyx":45
+ *                     output = np.tensordot(output,opips[opcount].conj(),axes=[[count],[0]])
  *                 else:
- *                     output = np.tensordot(output,opips[i][ops[opcount]],axes=[[count],[1]])             # <<<<<<<<<<<<<<
+ *                     output = np.tensordot(output,opips[opcount],axes=[[count],[1]])             # <<<<<<<<<<<<<<
  *                 opcount += 1
  *             else:
  */
         /*else*/ {
-          __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_np); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 56, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_6);
-          __pyx_t_7 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 56, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_7);
-          __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-          __pyx_t_6 = __Pyx_GetItemInt(__pyx_v_opips, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 56, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_6);
-          __pyx_t_1 = __Pyx_GetItemInt(__pyx_v_ops, __pyx_v_opcount, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 56, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_1);
-          __pyx_t_10 = __Pyx_PyObject_GetItem(__pyx_t_6, __pyx_t_1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 56, __pyx_L1_error)
+          __Pyx_GetModuleGlobalName(__pyx_t_9, __pyx_n_s_np); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 45, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_9);
+          __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_9, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 45, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_10);
-          __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-          __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-          __pyx_t_1 = PyTuple_New(2); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 56, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_1);
+          __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+          __pyx_t_9 = __Pyx_GetItemInt(__pyx_v_opips, __pyx_v_opcount, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 45, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_9);
+          __pyx_t_8 = PyTuple_New(2); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 45, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_8);
           __Pyx_INCREF(((PyObject *)__pyx_v_output));
           __Pyx_GIVEREF(((PyObject *)__pyx_v_output));
-          PyTuple_SET_ITEM(__pyx_t_1, 0, ((PyObject *)__pyx_v_output));
-          __Pyx_GIVEREF(__pyx_t_10);
-          PyTuple_SET_ITEM(__pyx_t_1, 1, __pyx_t_10);
-          __pyx_t_10 = 0;
-          __pyx_t_10 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 56, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_10);
-          __pyx_t_6 = __Pyx_PyInt_From_int(__pyx_v_count); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 56, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_6);
-          __pyx_t_9 = PyList_New(1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 56, __pyx_L1_error)
+          PyTuple_SET_ITEM(__pyx_t_8, 0, ((PyObject *)__pyx_v_output));
+          __Pyx_GIVEREF(__pyx_t_9);
+          PyTuple_SET_ITEM(__pyx_t_8, 1, __pyx_t_9);
+          __pyx_t_9 = 0;
+          __pyx_t_9 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 45, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_9);
-          __Pyx_GIVEREF(__pyx_t_6);
-          PyList_SET_ITEM(__pyx_t_9, 0, __pyx_t_6);
-          __pyx_t_6 = 0;
-          __pyx_t_6 = PyList_New(1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 56, __pyx_L1_error)
+          __pyx_t_7 = __Pyx_PyInt_From_int(__pyx_v_count); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 45, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_7);
+          __pyx_t_6 = PyList_New(1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 45, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_6);
+          __Pyx_GIVEREF(__pyx_t_7);
+          PyList_SET_ITEM(__pyx_t_6, 0, __pyx_t_7);
+          __pyx_t_7 = 0;
+          __pyx_t_7 = PyList_New(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 45, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_7);
           __Pyx_INCREF(__pyx_int_1);
           __Pyx_GIVEREF(__pyx_int_1);
-          PyList_SET_ITEM(__pyx_t_6, 0, __pyx_int_1);
-          __pyx_t_8 = PyList_New(2); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 56, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_8);
-          __Pyx_GIVEREF(__pyx_t_9);
-          PyList_SET_ITEM(__pyx_t_8, 0, __pyx_t_9);
+          PyList_SET_ITEM(__pyx_t_7, 0, __pyx_int_1);
+          __pyx_t_1 = PyList_New(2); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 45, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_1);
           __Pyx_GIVEREF(__pyx_t_6);
-          PyList_SET_ITEM(__pyx_t_8, 1, __pyx_t_6);
-          __pyx_t_9 = 0;
+          PyList_SET_ITEM(__pyx_t_1, 0, __pyx_t_6);
+          __Pyx_GIVEREF(__pyx_t_7);
+          PyList_SET_ITEM(__pyx_t_1, 1, __pyx_t_7);
           __pyx_t_6 = 0;
-          if (PyDict_SetItem(__pyx_t_10, __pyx_n_s_axes, __pyx_t_8) < 0) __PYX_ERR(0, 56, __pyx_L1_error)
-          __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-          __pyx_t_8 = __Pyx_PyObject_Call(__pyx_t_7, __pyx_t_1, __pyx_t_10); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 56, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_8);
-          __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+          __pyx_t_7 = 0;
+          if (PyDict_SetItem(__pyx_t_9, __pyx_n_s_axes, __pyx_t_1) < 0) __PYX_ERR(0, 45, __pyx_L1_error)
           __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+          __pyx_t_1 = __Pyx_PyObject_Call(__pyx_t_10, __pyx_t_8, __pyx_t_9); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 45, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_1);
           __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-          if (!(likely(((__pyx_t_8) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_8, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 56, __pyx_L1_error)
-          __Pyx_DECREF_SET(__pyx_v_output, ((PyArrayObject *)__pyx_t_8));
-          __pyx_t_8 = 0;
+          __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+          __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+          if (!(likely(((__pyx_t_1) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_1, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 45, __pyx_L1_error)
+          __Pyx_DECREF_SET(__pyx_v_output, ((PyArrayObject *)__pyx_t_1));
+          __pyx_t_1 = 0;
         }
-        __pyx_L11:;
+        __pyx_L15:;
 
-        /* "tensorutils.pyx":57
+        /* "tensorutils.pyx":46
  *                 else:
- *                     output = np.tensordot(output,opips[i][ops[opcount]],axes=[[count],[1]])
+ *                     output = np.tensordot(output,opips[opcount],axes=[[count],[1]])
  *                 opcount += 1             # <<<<<<<<<<<<<<
  *             else:
  *                 if spfovs != None:
  */
         __pyx_v_opcount = (__pyx_v_opcount + 1);
 
-        /* "tensorutils.pyx":51
+        /* "tensorutils.pyx":40
  *         unskipped = []
  *         for i in range(nmodes):
  *             if i in modes:             # <<<<<<<<<<<<<<
  *                 unskipped.append( i )
  *                 if conj:
  */
-        goto __pyx_L10;
+        goto __pyx_L14;
       }
 
-      /* "tensorutils.pyx":59
+      /* "tensorutils.pyx":48
  *                 opcount += 1
  *             else:
  *                 if spfovs != None:             # <<<<<<<<<<<<<<
@@ -2575,117 +2752,117 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
  *                     if conj:
  */
       /*else*/ {
-        __pyx_t_8 = PyObject_RichCompare(__pyx_v_spfovs, Py_None, Py_NE); __Pyx_XGOTREF(__pyx_t_8); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 59, __pyx_L1_error)
-        __pyx_t_11 = __Pyx_PyObject_IsTrue(__pyx_t_8); if (unlikely(__pyx_t_11 < 0)) __PYX_ERR(0, 59, __pyx_L1_error)
-        __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-        if (__pyx_t_11) {
+        __pyx_t_1 = PyObject_RichCompare(__pyx_v_spfovs, Py_None, Py_NE); __Pyx_XGOTREF(__pyx_t_1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 48, __pyx_L1_error)
+        __pyx_t_13 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely(__pyx_t_13 < 0)) __PYX_ERR(0, 48, __pyx_L1_error)
+        __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+        if (__pyx_t_13) {
 
-          /* "tensorutils.pyx":60
+          /* "tensorutils.pyx":49
  *             else:
  *                 if spfovs != None:
  *                     unskipped.append( i )             # <<<<<<<<<<<<<<
  *                     if conj:
  *                         output = np.tensordot(output,spfovs[i].conj(),axes=[[count],[0]])
  */
-          __pyx_t_8 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 60, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_8);
-          __pyx_t_12 = __Pyx_PyList_Append(__pyx_v_unskipped, __pyx_t_8); if (unlikely(__pyx_t_12 == ((int)-1))) __PYX_ERR(0, 60, __pyx_L1_error)
-          __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+          __pyx_t_1 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 49, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_1);
+          __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_unskipped, __pyx_t_1); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 49, __pyx_L1_error)
+          __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-          /* "tensorutils.pyx":61
+          /* "tensorutils.pyx":50
  *                 if spfovs != None:
  *                     unskipped.append( i )
  *                     if conj:             # <<<<<<<<<<<<<<
  *                         output = np.tensordot(output,spfovs[i].conj(),axes=[[count],[0]])
  *                     else:
  */
-          __pyx_t_11 = __Pyx_PyObject_IsTrue(__pyx_v_conj); if (unlikely(__pyx_t_11 < 0)) __PYX_ERR(0, 61, __pyx_L1_error)
-          if (__pyx_t_11) {
+          __pyx_t_13 = __Pyx_PyObject_IsTrue(__pyx_v_conj); if (unlikely(__pyx_t_13 < 0)) __PYX_ERR(0, 50, __pyx_L1_error)
+          if (__pyx_t_13) {
 
-            /* "tensorutils.pyx":62
+            /* "tensorutils.pyx":51
  *                     unskipped.append( i )
  *                     if conj:
  *                         output = np.tensordot(output,spfovs[i].conj(),axes=[[count],[0]])             # <<<<<<<<<<<<<<
  *                     else:
  *                         output = np.tensordot(output,spfovs[i],axes=[[count],[1]])
  */
-            __Pyx_GetModuleGlobalName(__pyx_t_8, __pyx_n_s_np); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 62, __pyx_L1_error)
+            __Pyx_GetModuleGlobalName(__pyx_t_1, __pyx_n_s_np); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 51, __pyx_L1_error)
+            __Pyx_GOTREF(__pyx_t_1);
+            __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 51, __pyx_L1_error)
+            __Pyx_GOTREF(__pyx_t_9);
+            __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+            __pyx_t_8 = __Pyx_GetItemInt(__pyx_v_spfovs, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 51, __pyx_L1_error)
             __Pyx_GOTREF(__pyx_t_8);
-            __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_8, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 62, __pyx_L1_error)
+            __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_8, __pyx_n_s_conj); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 51, __pyx_L1_error)
             __Pyx_GOTREF(__pyx_t_10);
             __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-            __pyx_t_1 = __Pyx_GetItemInt(__pyx_v_spfovs, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 62, __pyx_L1_error)
-            __Pyx_GOTREF(__pyx_t_1);
-            __pyx_t_7 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_conj); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 62, __pyx_L1_error)
-            __Pyx_GOTREF(__pyx_t_7);
-            __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-            __pyx_t_1 = NULL;
-            if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_7))) {
-              __pyx_t_1 = PyMethod_GET_SELF(__pyx_t_7);
-              if (likely(__pyx_t_1)) {
-                PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_7);
-                __Pyx_INCREF(__pyx_t_1);
+            __pyx_t_8 = NULL;
+            if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_10))) {
+              __pyx_t_8 = PyMethod_GET_SELF(__pyx_t_10);
+              if (likely(__pyx_t_8)) {
+                PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_10);
+                __Pyx_INCREF(__pyx_t_8);
                 __Pyx_INCREF(function);
-                __Pyx_DECREF_SET(__pyx_t_7, function);
+                __Pyx_DECREF_SET(__pyx_t_10, function);
               }
             }
-            __pyx_t_8 = (__pyx_t_1) ? __Pyx_PyObject_CallOneArg(__pyx_t_7, __pyx_t_1) : __Pyx_PyObject_CallNoArg(__pyx_t_7);
-            __Pyx_XDECREF(__pyx_t_1); __pyx_t_1 = 0;
-            if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 62, __pyx_L1_error)
-            __Pyx_GOTREF(__pyx_t_8);
-            __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-            __pyx_t_7 = PyTuple_New(2); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 62, __pyx_L1_error)
-            __Pyx_GOTREF(__pyx_t_7);
+            __pyx_t_1 = (__pyx_t_8) ? __Pyx_PyObject_CallOneArg(__pyx_t_10, __pyx_t_8) : __Pyx_PyObject_CallNoArg(__pyx_t_10);
+            __Pyx_XDECREF(__pyx_t_8); __pyx_t_8 = 0;
+            if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 51, __pyx_L1_error)
+            __Pyx_GOTREF(__pyx_t_1);
+            __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+            __pyx_t_10 = PyTuple_New(2); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 51, __pyx_L1_error)
+            __Pyx_GOTREF(__pyx_t_10);
             __Pyx_INCREF(((PyObject *)__pyx_v_output));
             __Pyx_GIVEREF(((PyObject *)__pyx_v_output));
-            PyTuple_SET_ITEM(__pyx_t_7, 0, ((PyObject *)__pyx_v_output));
-            __Pyx_GIVEREF(__pyx_t_8);
-            PyTuple_SET_ITEM(__pyx_t_7, 1, __pyx_t_8);
-            __pyx_t_8 = 0;
-            __pyx_t_8 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 62, __pyx_L1_error)
-            __Pyx_GOTREF(__pyx_t_8);
-            __pyx_t_1 = __Pyx_PyInt_From_int(__pyx_v_count); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 62, __pyx_L1_error)
-            __Pyx_GOTREF(__pyx_t_1);
-            __pyx_t_6 = PyList_New(1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 62, __pyx_L1_error)
-            __Pyx_GOTREF(__pyx_t_6);
+            PyTuple_SET_ITEM(__pyx_t_10, 0, ((PyObject *)__pyx_v_output));
             __Pyx_GIVEREF(__pyx_t_1);
-            PyList_SET_ITEM(__pyx_t_6, 0, __pyx_t_1);
+            PyTuple_SET_ITEM(__pyx_t_10, 1, __pyx_t_1);
             __pyx_t_1 = 0;
-            __pyx_t_1 = PyList_New(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 62, __pyx_L1_error)
+            __pyx_t_1 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 51, __pyx_L1_error)
             __Pyx_GOTREF(__pyx_t_1);
+            __pyx_t_8 = __Pyx_PyInt_From_int(__pyx_v_count); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 51, __pyx_L1_error)
+            __Pyx_GOTREF(__pyx_t_8);
+            __pyx_t_7 = PyList_New(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 51, __pyx_L1_error)
+            __Pyx_GOTREF(__pyx_t_7);
+            __Pyx_GIVEREF(__pyx_t_8);
+            PyList_SET_ITEM(__pyx_t_7, 0, __pyx_t_8);
+            __pyx_t_8 = 0;
+            __pyx_t_8 = PyList_New(1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 51, __pyx_L1_error)
+            __Pyx_GOTREF(__pyx_t_8);
             __Pyx_INCREF(__pyx_int_0);
             __Pyx_GIVEREF(__pyx_int_0);
-            PyList_SET_ITEM(__pyx_t_1, 0, __pyx_int_0);
-            __pyx_t_9 = PyList_New(2); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 62, __pyx_L1_error)
-            __Pyx_GOTREF(__pyx_t_9);
-            __Pyx_GIVEREF(__pyx_t_6);
-            PyList_SET_ITEM(__pyx_t_9, 0, __pyx_t_6);
-            __Pyx_GIVEREF(__pyx_t_1);
-            PyList_SET_ITEM(__pyx_t_9, 1, __pyx_t_1);
-            __pyx_t_6 = 0;
-            __pyx_t_1 = 0;
-            if (PyDict_SetItem(__pyx_t_8, __pyx_n_s_axes, __pyx_t_9) < 0) __PYX_ERR(0, 62, __pyx_L1_error)
+            PyList_SET_ITEM(__pyx_t_8, 0, __pyx_int_0);
+            __pyx_t_6 = PyList_New(2); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 51, __pyx_L1_error)
+            __Pyx_GOTREF(__pyx_t_6);
+            __Pyx_GIVEREF(__pyx_t_7);
+            PyList_SET_ITEM(__pyx_t_6, 0, __pyx_t_7);
+            __Pyx_GIVEREF(__pyx_t_8);
+            PyList_SET_ITEM(__pyx_t_6, 1, __pyx_t_8);
+            __pyx_t_7 = 0;
+            __pyx_t_8 = 0;
+            if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_axes, __pyx_t_6) < 0) __PYX_ERR(0, 51, __pyx_L1_error)
+            __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+            __pyx_t_6 = __Pyx_PyObject_Call(__pyx_t_9, __pyx_t_10, __pyx_t_1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 51, __pyx_L1_error)
+            __Pyx_GOTREF(__pyx_t_6);
             __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-            __pyx_t_9 = __Pyx_PyObject_Call(__pyx_t_10, __pyx_t_7, __pyx_t_8); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 62, __pyx_L1_error)
-            __Pyx_GOTREF(__pyx_t_9);
             __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-            __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-            __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-            if (!(likely(((__pyx_t_9) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_9, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 62, __pyx_L1_error)
-            __Pyx_DECREF_SET(__pyx_v_output, ((PyArrayObject *)__pyx_t_9));
-            __pyx_t_9 = 0;
+            __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+            if (!(likely(((__pyx_t_6) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_6, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 51, __pyx_L1_error)
+            __Pyx_DECREF_SET(__pyx_v_output, ((PyArrayObject *)__pyx_t_6));
+            __pyx_t_6 = 0;
 
-            /* "tensorutils.pyx":61
+            /* "tensorutils.pyx":50
  *                 if spfovs != None:
  *                     unskipped.append( i )
  *                     if conj:             # <<<<<<<<<<<<<<
  *                         output = np.tensordot(output,spfovs[i].conj(),axes=[[count],[0]])
  *                     else:
  */
-            goto __pyx_L13;
+            goto __pyx_L17;
           }
 
-          /* "tensorutils.pyx":64
+          /* "tensorutils.pyx":53
  *                         output = np.tensordot(output,spfovs[i].conj(),axes=[[count],[0]])
  *                     else:
  *                         output = np.tensordot(output,spfovs[i],axes=[[count],[1]])             # <<<<<<<<<<<<<<
@@ -2693,67 +2870,67 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
  *                     skipped.append(i)
  */
           /*else*/ {
-            __Pyx_GetModuleGlobalName(__pyx_t_9, __pyx_n_s_np); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 64, __pyx_L1_error)
-            __Pyx_GOTREF(__pyx_t_9);
-            __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_t_9, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 64, __pyx_L1_error)
-            __Pyx_GOTREF(__pyx_t_8);
-            __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-            __pyx_t_9 = __Pyx_GetItemInt(__pyx_v_spfovs, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 64, __pyx_L1_error)
-            __Pyx_GOTREF(__pyx_t_9);
-            __pyx_t_7 = PyTuple_New(2); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 64, __pyx_L1_error)
-            __Pyx_GOTREF(__pyx_t_7);
+            __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_np); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 53, __pyx_L1_error)
+            __Pyx_GOTREF(__pyx_t_6);
+            __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 53, __pyx_L1_error)
+            __Pyx_GOTREF(__pyx_t_1);
+            __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+            __pyx_t_6 = __Pyx_GetItemInt(__pyx_v_spfovs, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 53, __pyx_L1_error)
+            __Pyx_GOTREF(__pyx_t_6);
+            __pyx_t_10 = PyTuple_New(2); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 53, __pyx_L1_error)
+            __Pyx_GOTREF(__pyx_t_10);
             __Pyx_INCREF(((PyObject *)__pyx_v_output));
             __Pyx_GIVEREF(((PyObject *)__pyx_v_output));
-            PyTuple_SET_ITEM(__pyx_t_7, 0, ((PyObject *)__pyx_v_output));
-            __Pyx_GIVEREF(__pyx_t_9);
-            PyTuple_SET_ITEM(__pyx_t_7, 1, __pyx_t_9);
-            __pyx_t_9 = 0;
-            __pyx_t_9 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 64, __pyx_L1_error)
+            PyTuple_SET_ITEM(__pyx_t_10, 0, ((PyObject *)__pyx_v_output));
+            __Pyx_GIVEREF(__pyx_t_6);
+            PyTuple_SET_ITEM(__pyx_t_10, 1, __pyx_t_6);
+            __pyx_t_6 = 0;
+            __pyx_t_6 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 53, __pyx_L1_error)
+            __Pyx_GOTREF(__pyx_t_6);
+            __pyx_t_9 = __Pyx_PyInt_From_int(__pyx_v_count); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 53, __pyx_L1_error)
             __Pyx_GOTREF(__pyx_t_9);
-            __pyx_t_10 = __Pyx_PyInt_From_int(__pyx_v_count); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 64, __pyx_L1_error)
-            __Pyx_GOTREF(__pyx_t_10);
-            __pyx_t_1 = PyList_New(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 64, __pyx_L1_error)
-            __Pyx_GOTREF(__pyx_t_1);
-            __Pyx_GIVEREF(__pyx_t_10);
-            PyList_SET_ITEM(__pyx_t_1, 0, __pyx_t_10);
-            __pyx_t_10 = 0;
-            __pyx_t_10 = PyList_New(1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 64, __pyx_L1_error)
-            __Pyx_GOTREF(__pyx_t_10);
+            __pyx_t_8 = PyList_New(1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 53, __pyx_L1_error)
+            __Pyx_GOTREF(__pyx_t_8);
+            __Pyx_GIVEREF(__pyx_t_9);
+            PyList_SET_ITEM(__pyx_t_8, 0, __pyx_t_9);
+            __pyx_t_9 = 0;
+            __pyx_t_9 = PyList_New(1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 53, __pyx_L1_error)
+            __Pyx_GOTREF(__pyx_t_9);
             __Pyx_INCREF(__pyx_int_1);
             __Pyx_GIVEREF(__pyx_int_1);
-            PyList_SET_ITEM(__pyx_t_10, 0, __pyx_int_1);
-            __pyx_t_6 = PyList_New(2); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 64, __pyx_L1_error)
-            __Pyx_GOTREF(__pyx_t_6);
-            __Pyx_GIVEREF(__pyx_t_1);
-            PyList_SET_ITEM(__pyx_t_6, 0, __pyx_t_1);
-            __Pyx_GIVEREF(__pyx_t_10);
-            PyList_SET_ITEM(__pyx_t_6, 1, __pyx_t_10);
-            __pyx_t_1 = 0;
-            __pyx_t_10 = 0;
-            if (PyDict_SetItem(__pyx_t_9, __pyx_n_s_axes, __pyx_t_6) < 0) __PYX_ERR(0, 64, __pyx_L1_error)
-            __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-            __pyx_t_6 = __Pyx_PyObject_Call(__pyx_t_8, __pyx_t_7, __pyx_t_9); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 64, __pyx_L1_error)
-            __Pyx_GOTREF(__pyx_t_6);
-            __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+            PyList_SET_ITEM(__pyx_t_9, 0, __pyx_int_1);
+            __pyx_t_7 = PyList_New(2); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 53, __pyx_L1_error)
+            __Pyx_GOTREF(__pyx_t_7);
+            __Pyx_GIVEREF(__pyx_t_8);
+            PyList_SET_ITEM(__pyx_t_7, 0, __pyx_t_8);
+            __Pyx_GIVEREF(__pyx_t_9);
+            PyList_SET_ITEM(__pyx_t_7, 1, __pyx_t_9);
+            __pyx_t_8 = 0;
+            __pyx_t_9 = 0;
+            if (PyDict_SetItem(__pyx_t_6, __pyx_n_s_axes, __pyx_t_7) < 0) __PYX_ERR(0, 53, __pyx_L1_error)
             __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-            __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-            if (!(likely(((__pyx_t_6) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_6, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 64, __pyx_L1_error)
-            __Pyx_DECREF_SET(__pyx_v_output, ((PyArrayObject *)__pyx_t_6));
-            __pyx_t_6 = 0;
+            __pyx_t_7 = __Pyx_PyObject_Call(__pyx_t_1, __pyx_t_10, __pyx_t_6); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 53, __pyx_L1_error)
+            __Pyx_GOTREF(__pyx_t_7);
+            __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+            __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+            __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+            if (!(likely(((__pyx_t_7) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_7, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 53, __pyx_L1_error)
+            __Pyx_DECREF_SET(__pyx_v_output, ((PyArrayObject *)__pyx_t_7));
+            __pyx_t_7 = 0;
           }
-          __pyx_L13:;
+          __pyx_L17:;
 
-          /* "tensorutils.pyx":59
+          /* "tensorutils.pyx":48
  *                 opcount += 1
  *             else:
  *                 if spfovs != None:             # <<<<<<<<<<<<<<
  *                     unskipped.append( i )
  *                     if conj:
  */
-          goto __pyx_L12;
+          goto __pyx_L16;
         }
 
-        /* "tensorutils.pyx":66
+        /* "tensorutils.pyx":55
  *                         output = np.tensordot(output,spfovs[i],axes=[[count],[1]])
  *                 else:
  *                     skipped.append(i)             # <<<<<<<<<<<<<<
@@ -2761,12 +2938,12 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
  *         outorder = [skipped[i] for i in range(len(skipped))]
  */
         /*else*/ {
-          __pyx_t_6 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 66, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_6);
-          __pyx_t_12 = __Pyx_PyList_Append(__pyx_v_skipped, __pyx_t_6); if (unlikely(__pyx_t_12 == ((int)-1))) __PYX_ERR(0, 66, __pyx_L1_error)
-          __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+          __pyx_t_7 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 55, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_7);
+          __pyx_t_15 = __Pyx_PyList_Append(__pyx_v_skipped, __pyx_t_7); if (unlikely(__pyx_t_15 == ((int)-1))) __PYX_ERR(0, 55, __pyx_L1_error)
+          __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
 
-          /* "tensorutils.pyx":67
+          /* "tensorutils.pyx":56
  *                 else:
  *                     skipped.append(i)
  *                     count += 1             # <<<<<<<<<<<<<<
@@ -2775,81 +2952,81 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
  */
           __pyx_v_count = (__pyx_v_count + 1);
         }
-        __pyx_L12:;
+        __pyx_L16:;
       }
-      __pyx_L10:;
+      __pyx_L14:;
     }
 
-    /* "tensorutils.pyx":68
+    /* "tensorutils.pyx":57
  *                     skipped.append(i)
  *                     count += 1
  *         outorder = [skipped[i] for i in range(len(skipped))]             # <<<<<<<<<<<<<<
  *         outorder += [unskipped[i] for i in range(len(unskipped))]
  *         outaxes = [outorder.index(i) for i in range(len(outorder))]
  */
-    __pyx_t_6 = PyList_New(0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 68, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_6);
-    __pyx_t_13 = PyList_GET_SIZE(__pyx_v_skipped); if (unlikely(__pyx_t_13 == ((Py_ssize_t)-1))) __PYX_ERR(0, 68, __pyx_L1_error)
-    __pyx_t_14 = __pyx_t_13;
+    __pyx_t_7 = PyList_New(0); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 57, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __pyx_t_11 = PyList_GET_SIZE(__pyx_v_skipped); if (unlikely(__pyx_t_11 == ((Py_ssize_t)-1))) __PYX_ERR(0, 57, __pyx_L1_error)
+    __pyx_t_14 = __pyx_t_11;
     for (__pyx_t_3 = 0; __pyx_t_3 < __pyx_t_14; __pyx_t_3+=1) {
       __pyx_v_i = __pyx_t_3;
-      __pyx_t_9 = __Pyx_GetItemInt_List(__pyx_v_skipped, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 1, 1, 1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 68, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_9);
-      if (unlikely(__Pyx_ListComp_Append(__pyx_t_6, (PyObject*)__pyx_t_9))) __PYX_ERR(0, 68, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+      __pyx_t_6 = __Pyx_GetItemInt_List(__pyx_v_skipped, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 1, 1, 1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 57, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_6);
+      if (unlikely(__Pyx_ListComp_Append(__pyx_t_7, (PyObject*)__pyx_t_6))) __PYX_ERR(0, 57, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
     }
-    __pyx_v_outorder = ((PyObject*)__pyx_t_6);
-    __pyx_t_6 = 0;
+    __pyx_v_outorder = ((PyObject*)__pyx_t_7);
+    __pyx_t_7 = 0;
 
-    /* "tensorutils.pyx":69
+    /* "tensorutils.pyx":58
  *                     count += 1
  *         outorder = [skipped[i] for i in range(len(skipped))]
  *         outorder += [unskipped[i] for i in range(len(unskipped))]             # <<<<<<<<<<<<<<
  *         outaxes = [outorder.index(i) for i in range(len(outorder))]
  *         return np.transpose(output, axes=outaxes)
  */
-    __pyx_t_6 = PyList_New(0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 69, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_6);
-    __pyx_t_13 = PyList_GET_SIZE(__pyx_v_unskipped); if (unlikely(__pyx_t_13 == ((Py_ssize_t)-1))) __PYX_ERR(0, 69, __pyx_L1_error)
-    __pyx_t_14 = __pyx_t_13;
+    __pyx_t_7 = PyList_New(0); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 58, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __pyx_t_11 = PyList_GET_SIZE(__pyx_v_unskipped); if (unlikely(__pyx_t_11 == ((Py_ssize_t)-1))) __PYX_ERR(0, 58, __pyx_L1_error)
+    __pyx_t_14 = __pyx_t_11;
     for (__pyx_t_3 = 0; __pyx_t_3 < __pyx_t_14; __pyx_t_3+=1) {
       __pyx_v_i = __pyx_t_3;
-      __pyx_t_9 = __Pyx_GetItemInt_List(__pyx_v_unskipped, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 1, 1, 1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 69, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_9);
-      if (unlikely(__Pyx_ListComp_Append(__pyx_t_6, (PyObject*)__pyx_t_9))) __PYX_ERR(0, 69, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+      __pyx_t_6 = __Pyx_GetItemInt_List(__pyx_v_unskipped, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 1, 1, 1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 58, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_6);
+      if (unlikely(__Pyx_ListComp_Append(__pyx_t_7, (PyObject*)__pyx_t_6))) __PYX_ERR(0, 58, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
     }
-    __pyx_t_9 = PyNumber_InPlaceAdd(__pyx_v_outorder, __pyx_t_6); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 69, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_9);
-    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    __Pyx_DECREF_SET(__pyx_v_outorder, ((PyObject*)__pyx_t_9));
-    __pyx_t_9 = 0;
+    __pyx_t_6 = PyNumber_InPlaceAdd(__pyx_v_outorder, __pyx_t_7); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 58, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+    __Pyx_DECREF_SET(__pyx_v_outorder, ((PyObject*)__pyx_t_6));
+    __pyx_t_6 = 0;
 
-    /* "tensorutils.pyx":70
+    /* "tensorutils.pyx":59
  *         outorder = [skipped[i] for i in range(len(skipped))]
  *         outorder += [unskipped[i] for i in range(len(unskipped))]
  *         outaxes = [outorder.index(i) for i in range(len(outorder))]             # <<<<<<<<<<<<<<
  *         return np.transpose(output, axes=outaxes)
  * 
  */
-    __pyx_t_9 = PyList_New(0); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 70, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_9);
-    __pyx_t_13 = PyList_GET_SIZE(__pyx_v_outorder); if (unlikely(__pyx_t_13 == ((Py_ssize_t)-1))) __PYX_ERR(0, 70, __pyx_L1_error)
-    __pyx_t_14 = __pyx_t_13;
+    __pyx_t_6 = PyList_New(0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 59, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __pyx_t_11 = PyList_GET_SIZE(__pyx_v_outorder); if (unlikely(__pyx_t_11 == ((Py_ssize_t)-1))) __PYX_ERR(0, 59, __pyx_L1_error)
+    __pyx_t_14 = __pyx_t_11;
     for (__pyx_t_3 = 0; __pyx_t_3 < __pyx_t_14; __pyx_t_3+=1) {
       __pyx_v_i = __pyx_t_3;
-      __pyx_t_6 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 70, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
-      __pyx_t_7 = __Pyx_CallUnboundCMethod1(&__pyx_umethod_PyList_Type_index, __pyx_v_outorder, __pyx_t_6); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 70, __pyx_L1_error)
+      __pyx_t_7 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 59, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_7);
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      if (unlikely(__Pyx_ListComp_Append(__pyx_t_9, (PyObject*)__pyx_t_7))) __PYX_ERR(0, 70, __pyx_L1_error)
+      __pyx_t_10 = __Pyx_CallUnboundCMethod1(&__pyx_umethod_PyList_Type_index, __pyx_v_outorder, __pyx_t_7); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 59, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_10);
       __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+      if (unlikely(__Pyx_ListComp_Append(__pyx_t_6, (PyObject*)__pyx_t_10))) __PYX_ERR(0, 59, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
     }
-    __pyx_v_outaxes = ((PyObject*)__pyx_t_9);
-    __pyx_t_9 = 0;
+    __pyx_v_outaxes = ((PyObject*)__pyx_t_6);
+    __pyx_t_6 = 0;
 
-    /* "tensorutils.pyx":71
+    /* "tensorutils.pyx":60
  *         outorder += [unskipped[i] for i in range(len(unskipped))]
  *         outaxes = [outorder.index(i) for i in range(len(outorder))]
  *         return np.transpose(output, axes=outaxes)             # <<<<<<<<<<<<<<
@@ -2857,35 +3034,35 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
  * def atensorcontract(int nmodes, list modes, *As, spfovs=None, spfovsconj=False):
  */
     __Pyx_XDECREF(__pyx_r);
-    __Pyx_GetModuleGlobalName(__pyx_t_9, __pyx_n_s_np); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 71, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_9);
-    __pyx_t_7 = __Pyx_PyObject_GetAttrStr(__pyx_t_9, __pyx_n_s_transpose); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 71, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_7);
-    __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-    __pyx_t_9 = PyTuple_New(1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 71, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_9);
+    __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_np); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 60, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
+    __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_transpose); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 60, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_10);
+    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __pyx_t_6 = PyTuple_New(1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 60, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_6);
     __Pyx_INCREF(((PyObject *)__pyx_v_output));
     __Pyx_GIVEREF(((PyObject *)__pyx_v_output));
-    PyTuple_SET_ITEM(__pyx_t_9, 0, ((PyObject *)__pyx_v_output));
-    __pyx_t_6 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 71, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_6);
-    if (PyDict_SetItem(__pyx_t_6, __pyx_n_s_axes, __pyx_v_outaxes) < 0) __PYX_ERR(0, 71, __pyx_L1_error)
-    __pyx_t_8 = __Pyx_PyObject_Call(__pyx_t_7, __pyx_t_9, __pyx_t_6); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 71, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_8);
-    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-    __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+    PyTuple_SET_ITEM(__pyx_t_6, 0, ((PyObject *)__pyx_v_output));
+    __pyx_t_7 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 60, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    if (PyDict_SetItem(__pyx_t_7, __pyx_n_s_axes, __pyx_v_outaxes) < 0) __PYX_ERR(0, 60, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_Call(__pyx_t_10, __pyx_t_6, __pyx_t_7); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 60, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    __pyx_r = __pyx_t_8;
-    __pyx_t_8 = 0;
+    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+    __pyx_r = __pyx_t_1;
+    __pyx_t_1 = 0;
     goto __pyx_L0;
   }
 
-  /* "tensorutils.pyx":4
- * cimport numpy as cnp
+  /* "tensorutils.pyx":5
  * 
- * def matelcontract(int nmodes,list modes,ops,opips,cnp.ndarray A, spfovs=None,conj=False):             # <<<<<<<<<<<<<<
- *     """Computes the contractions required for mctdh coefficient eom.
- * 
+ * #
+ * def matelcontract(int nmodes,list modes,opips,cnp.ndarray A,spfovs=None,conj=False):             # <<<<<<<<<<<<<<
+ *     cdef int i
+ *     cdef cnp.ndarray output
  */
 
   /* function exit code */
@@ -2909,7 +3086,7 @@ static PyObject *__pyx_pf_11tensorutils_matelcontract(CYTHON_UNUSED PyObject *__
   return __pyx_r;
 }
 
-/* "tensorutils.pyx":73
+/* "tensorutils.pyx":62
  *         return np.transpose(output, axes=outaxes)
  * 
  * def atensorcontract(int nmodes, list modes, *As, spfovs=None, spfovsconj=False):             # <<<<<<<<<<<<<<
@@ -2965,7 +3142,7 @@ static PyObject *__pyx_pw_11tensorutils_3atensorcontract(PyObject *__pyx_self, P
         case  1:
         if (likely((values[1] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_modes)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("atensorcontract", 0, 2, 2, 1); __PYX_ERR(0, 73, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("atensorcontract", 0, 2, 2, 1); __PYX_ERR(0, 62, __pyx_L3_error)
         }
       }
       if (kw_args > 0 && likely(kw_args <= 2)) {
@@ -2977,7 +3154,7 @@ static PyObject *__pyx_pw_11tensorutils_3atensorcontract(PyObject *__pyx_self, P
       }
       if (unlikely(kw_args > 0)) {
         const Py_ssize_t used_pos_args = (pos_args < 2) ? pos_args : 2;
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, used_pos_args, "atensorcontract") < 0)) __PYX_ERR(0, 73, __pyx_L3_error)
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, used_pos_args, "atensorcontract") < 0)) __PYX_ERR(0, 62, __pyx_L3_error)
       }
     } else if (PyTuple_GET_SIZE(__pyx_args) < 2) {
       goto __pyx_L5_argtuple_error;
@@ -2985,21 +3162,21 @@ static PyObject *__pyx_pw_11tensorutils_3atensorcontract(PyObject *__pyx_self, P
       values[0] = PyTuple_GET_ITEM(__pyx_args, 0);
       values[1] = PyTuple_GET_ITEM(__pyx_args, 1);
     }
-    __pyx_v_nmodes = __Pyx_PyInt_As_int(values[0]); if (unlikely((__pyx_v_nmodes == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 73, __pyx_L3_error)
+    __pyx_v_nmodes = __Pyx_PyInt_As_int(values[0]); if (unlikely((__pyx_v_nmodes == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 62, __pyx_L3_error)
     __pyx_v_modes = ((PyObject*)values[1]);
     __pyx_v_spfovs = values[2];
     __pyx_v_spfovsconj = values[3];
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("atensorcontract", 0, 2, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 73, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("atensorcontract", 0, 2, 2, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 62, __pyx_L3_error)
   __pyx_L3_error:;
   __Pyx_DECREF(__pyx_v_As); __pyx_v_As = 0;
   __Pyx_AddTraceback("tensorutils.atensorcontract", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_modes), (&PyList_Type), 1, "modes", 1))) __PYX_ERR(0, 73, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_modes), (&PyList_Type), 1, "modes", 1))) __PYX_ERR(0, 62, __pyx_L1_error)
   __pyx_r = __pyx_pf_11tensorutils_2atensorcontract(__pyx_self, __pyx_v_nmodes, __pyx_v_modes, __pyx_v_spfovs, __pyx_v_spfovsconj, __pyx_v_As);
 
   /* function exit code */
@@ -3021,57 +3198,56 @@ static PyObject *__pyx_pf_11tensorutils_2atensorcontract(CYTHON_UNUSED PyObject 
   PyObject *__pyx_v_path2 = 0;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
-  PyObject *__pyx_t_1 = NULL;
+  int __pyx_t_1;
   int __pyx_t_2;
-  int __pyx_t_3;
+  PyObject *__pyx_t_3 = NULL;
   int __pyx_t_4;
   int __pyx_t_5;
-  PyObject *__pyx_t_6 = NULL;
-  Py_ssize_t __pyx_t_7;
+  int __pyx_t_6;
+  PyObject *__pyx_t_7 = NULL;
   Py_ssize_t __pyx_t_8;
-  PyObject *__pyx_t_9 = NULL;
+  Py_ssize_t __pyx_t_9;
   PyObject *__pyx_t_10 = NULL;
-  int __pyx_t_11;
+  PyObject *__pyx_t_11 = NULL;
   int __pyx_t_12;
   PyObject *__pyx_t_13 = NULL;
   PyObject *__pyx_t_14 = NULL;
   __Pyx_RefNannySetupContext("atensorcontract", 0);
 
-  /* "tensorutils.pyx":113
+  /* "tensorutils.pyx":102
  *     cdef list path2
  *     # generate the initial list of indices, which will all be independent
- *     if spfovs == None:             # <<<<<<<<<<<<<<
+ *     if spfovs is None:             # <<<<<<<<<<<<<<
  *         path = [i for i in range(nmodes)]
  *         for i in range(len(modes)):
  */
-  __pyx_t_1 = PyObject_RichCompare(__pyx_v_spfovs, Py_None, Py_EQ); __Pyx_XGOTREF(__pyx_t_1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 113, __pyx_L1_error)
-  __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 113, __pyx_L1_error)
-  __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+  __pyx_t_1 = (__pyx_v_spfovs == Py_None);
+  __pyx_t_2 = (__pyx_t_1 != 0);
   if (__pyx_t_2) {
 
-    /* "tensorutils.pyx":114
+    /* "tensorutils.pyx":103
  *     # generate the initial list of indices, which will all be independent
- *     if spfovs == None:
+ *     if spfovs is None:
  *         path = [i for i in range(nmodes)]             # <<<<<<<<<<<<<<
  *         for i in range(len(modes)):
  *             path.remove(modes[i])
  */
-    __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 114, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_3 = __pyx_v_nmodes;
-    __pyx_t_4 = __pyx_t_3;
-    for (__pyx_t_5 = 0; __pyx_t_5 < __pyx_t_4; __pyx_t_5+=1) {
-      __pyx_v_i = __pyx_t_5;
-      __pyx_t_6 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 114, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
-      if (unlikely(__Pyx_ListComp_Append(__pyx_t_1, (PyObject*)__pyx_t_6))) __PYX_ERR(0, 114, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+    __pyx_t_3 = PyList_New(0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 103, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_3);
+    __pyx_t_4 = __pyx_v_nmodes;
+    __pyx_t_5 = __pyx_t_4;
+    for (__pyx_t_6 = 0; __pyx_t_6 < __pyx_t_5; __pyx_t_6+=1) {
+      __pyx_v_i = __pyx_t_6;
+      __pyx_t_7 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 103, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
+      if (unlikely(__Pyx_ListComp_Append(__pyx_t_3, (PyObject*)__pyx_t_7))) __PYX_ERR(0, 103, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
     }
-    __pyx_v_path = ((PyObject*)__pyx_t_1);
-    __pyx_t_1 = 0;
+    __pyx_v_path = ((PyObject*)__pyx_t_3);
+    __pyx_t_3 = 0;
 
-    /* "tensorutils.pyx":115
- *     if spfovs == None:
+    /* "tensorutils.pyx":104
+ *     if spfovs is None:
  *         path = [i for i in range(nmodes)]
  *         for i in range(len(modes)):             # <<<<<<<<<<<<<<
  *             path.remove(modes[i])
@@ -3079,14 +3255,14 @@ static PyObject *__pyx_pf_11tensorutils_2atensorcontract(CYTHON_UNUSED PyObject 
  */
     if (unlikely(__pyx_v_modes == Py_None)) {
       PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-      __PYX_ERR(0, 115, __pyx_L1_error)
+      __PYX_ERR(0, 104, __pyx_L1_error)
     }
-    __pyx_t_7 = PyList_GET_SIZE(__pyx_v_modes); if (unlikely(__pyx_t_7 == ((Py_ssize_t)-1))) __PYX_ERR(0, 115, __pyx_L1_error)
-    __pyx_t_8 = __pyx_t_7;
-    for (__pyx_t_3 = 0; __pyx_t_3 < __pyx_t_8; __pyx_t_3+=1) {
-      __pyx_v_i = __pyx_t_3;
+    __pyx_t_8 = PyList_GET_SIZE(__pyx_v_modes); if (unlikely(__pyx_t_8 == ((Py_ssize_t)-1))) __PYX_ERR(0, 104, __pyx_L1_error)
+    __pyx_t_9 = __pyx_t_8;
+    for (__pyx_t_4 = 0; __pyx_t_4 < __pyx_t_9; __pyx_t_4+=1) {
+      __pyx_v_i = __pyx_t_4;
 
-      /* "tensorutils.pyx":116
+      /* "tensorutils.pyx":105
  *         path = [i for i in range(nmodes)]
  *         for i in range(len(modes)):
  *             path.remove(modes[i])             # <<<<<<<<<<<<<<
@@ -3095,28 +3271,28 @@ static PyObject *__pyx_pf_11tensorutils_2atensorcontract(CYTHON_UNUSED PyObject 
  */
       if (unlikely(__pyx_v_modes == Py_None)) {
         PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-        __PYX_ERR(0, 116, __pyx_L1_error)
+        __PYX_ERR(0, 105, __pyx_L1_error)
       }
-      __pyx_t_1 = __Pyx_GetItemInt_List(__pyx_v_modes, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 1, 1, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 116, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_1);
-      __pyx_t_6 = __Pyx_CallUnboundCMethod1(&__pyx_umethod_PyList_Type_remove, __pyx_v_path, __pyx_t_1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 116, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
-      __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+      __pyx_t_3 = __Pyx_GetItemInt_List(__pyx_v_modes, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 1, 1, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 105, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+      __pyx_t_7 = __Pyx_CallUnboundCMethod1(&__pyx_umethod_PyList_Type_remove, __pyx_v_path, __pyx_t_3); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 105, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
     }
 
-    /* "tensorutils.pyx":117
+    /* "tensorutils.pyx":106
  *         for i in range(len(modes)):
  *             path.remove(modes[i])
  *         if len(As) == 1:             # <<<<<<<<<<<<<<
  *             return np.tensordot(As[0].conj(),As[0],axes=[path,path])
  *         elif len(As) == 2:
  */
-    __pyx_t_7 = PyTuple_GET_SIZE(__pyx_v_As); if (unlikely(__pyx_t_7 == ((Py_ssize_t)-1))) __PYX_ERR(0, 117, __pyx_L1_error)
-    __pyx_t_2 = ((__pyx_t_7 == 1) != 0);
+    __pyx_t_8 = PyTuple_GET_SIZE(__pyx_v_As); if (unlikely(__pyx_t_8 == ((Py_ssize_t)-1))) __PYX_ERR(0, 106, __pyx_L1_error)
+    __pyx_t_2 = ((__pyx_t_8 == 1) != 0);
     if (__pyx_t_2) {
 
-      /* "tensorutils.pyx":118
+      /* "tensorutils.pyx":107
  *             path.remove(modes[i])
  *         if len(As) == 1:
  *             return np.tensordot(As[0].conj(),As[0],axes=[path,path])             # <<<<<<<<<<<<<<
@@ -3124,63 +3300,63 @@ static PyObject *__pyx_pf_11tensorutils_2atensorcontract(CYTHON_UNUSED PyObject 
  *             return np.tensordot(As[0].conj(),As[1],axes=[path,path])
  */
       __Pyx_XDECREF(__pyx_r);
-      __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_np); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 118, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 118, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_1);
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      __pyx_t_9 = __Pyx_GetItemInt_Tuple(__pyx_v_As, 0, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 118, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_9);
-      __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_9, __pyx_n_s_conj); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 118, __pyx_L1_error)
+      __Pyx_GetModuleGlobalName(__pyx_t_7, __pyx_n_s_np); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 107, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
+      __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_7, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 107, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+      __pyx_t_10 = __Pyx_GetItemInt_Tuple(__pyx_v_As, 0, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 107, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_10);
-      __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-      __pyx_t_9 = NULL;
-      if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_10))) {
-        __pyx_t_9 = PyMethod_GET_SELF(__pyx_t_10);
-        if (likely(__pyx_t_9)) {
-          PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_10);
-          __Pyx_INCREF(__pyx_t_9);
+      __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_n_s_conj); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 107, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_11);
+      __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+      __pyx_t_10 = NULL;
+      if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_11))) {
+        __pyx_t_10 = PyMethod_GET_SELF(__pyx_t_11);
+        if (likely(__pyx_t_10)) {
+          PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_11);
+          __Pyx_INCREF(__pyx_t_10);
           __Pyx_INCREF(function);
-          __Pyx_DECREF_SET(__pyx_t_10, function);
+          __Pyx_DECREF_SET(__pyx_t_11, function);
         }
       }
-      __pyx_t_6 = (__pyx_t_9) ? __Pyx_PyObject_CallOneArg(__pyx_t_10, __pyx_t_9) : __Pyx_PyObject_CallNoArg(__pyx_t_10);
-      __Pyx_XDECREF(__pyx_t_9); __pyx_t_9 = 0;
-      if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 118, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
-      __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-      __pyx_t_10 = __Pyx_GetItemInt_Tuple(__pyx_v_As, 0, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 118, __pyx_L1_error)
+      __pyx_t_7 = (__pyx_t_10) ? __Pyx_PyObject_CallOneArg(__pyx_t_11, __pyx_t_10) : __Pyx_PyObject_CallNoArg(__pyx_t_11);
+      __Pyx_XDECREF(__pyx_t_10); __pyx_t_10 = 0;
+      if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 107, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
+      __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
+      __pyx_t_11 = __Pyx_GetItemInt_Tuple(__pyx_v_As, 0, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 107, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_11);
+      __pyx_t_10 = PyTuple_New(2); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 107, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_10);
-      __pyx_t_9 = PyTuple_New(2); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 118, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_9);
-      __Pyx_GIVEREF(__pyx_t_6);
-      PyTuple_SET_ITEM(__pyx_t_9, 0, __pyx_t_6);
-      __Pyx_GIVEREF(__pyx_t_10);
-      PyTuple_SET_ITEM(__pyx_t_9, 1, __pyx_t_10);
-      __pyx_t_6 = 0;
-      __pyx_t_10 = 0;
-      __pyx_t_10 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 118, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_10);
-      __pyx_t_6 = PyList_New(2); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 118, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
+      __Pyx_GIVEREF(__pyx_t_7);
+      PyTuple_SET_ITEM(__pyx_t_10, 0, __pyx_t_7);
+      __Pyx_GIVEREF(__pyx_t_11);
+      PyTuple_SET_ITEM(__pyx_t_10, 1, __pyx_t_11);
+      __pyx_t_7 = 0;
+      __pyx_t_11 = 0;
+      __pyx_t_11 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 107, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_11);
+      __pyx_t_7 = PyList_New(2); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 107, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
       __Pyx_INCREF(__pyx_v_path);
       __Pyx_GIVEREF(__pyx_v_path);
-      PyList_SET_ITEM(__pyx_t_6, 0, __pyx_v_path);
+      PyList_SET_ITEM(__pyx_t_7, 0, __pyx_v_path);
       __Pyx_INCREF(__pyx_v_path);
       __Pyx_GIVEREF(__pyx_v_path);
-      PyList_SET_ITEM(__pyx_t_6, 1, __pyx_v_path);
-      if (PyDict_SetItem(__pyx_t_10, __pyx_n_s_axes, __pyx_t_6) < 0) __PYX_ERR(0, 118, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      __pyx_t_6 = __Pyx_PyObject_Call(__pyx_t_1, __pyx_t_9, __pyx_t_10); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 118, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
-      __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-      __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+      PyList_SET_ITEM(__pyx_t_7, 1, __pyx_v_path);
+      if (PyDict_SetItem(__pyx_t_11, __pyx_n_s_axes, __pyx_t_7) < 0) __PYX_ERR(0, 107, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+      __pyx_t_7 = __Pyx_PyObject_Call(__pyx_t_3, __pyx_t_10, __pyx_t_11); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 107, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-      __pyx_r = __pyx_t_6;
-      __pyx_t_6 = 0;
+      __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
+      __pyx_r = __pyx_t_7;
+      __pyx_t_7 = 0;
       goto __pyx_L0;
 
-      /* "tensorutils.pyx":117
+      /* "tensorutils.pyx":106
  *         for i in range(len(modes)):
  *             path.remove(modes[i])
  *         if len(As) == 1:             # <<<<<<<<<<<<<<
@@ -3189,134 +3365,144 @@ static PyObject *__pyx_pf_11tensorutils_2atensorcontract(CYTHON_UNUSED PyObject 
  */
     }
 
-    /* "tensorutils.pyx":119
+    /* "tensorutils.pyx":108
  *         if len(As) == 1:
  *             return np.tensordot(As[0].conj(),As[0],axes=[path,path])
  *         elif len(As) == 2:             # <<<<<<<<<<<<<<
  *             return np.tensordot(As[0].conj(),As[1],axes=[path,path])
- *     else:
+ *     elif isinstance(spfovs,list):
  */
-    __pyx_t_7 = PyTuple_GET_SIZE(__pyx_v_As); if (unlikely(__pyx_t_7 == ((Py_ssize_t)-1))) __PYX_ERR(0, 119, __pyx_L1_error)
-    __pyx_t_2 = ((__pyx_t_7 == 2) != 0);
+    __pyx_t_8 = PyTuple_GET_SIZE(__pyx_v_As); if (unlikely(__pyx_t_8 == ((Py_ssize_t)-1))) __PYX_ERR(0, 108, __pyx_L1_error)
+    __pyx_t_2 = ((__pyx_t_8 == 2) != 0);
     if (__pyx_t_2) {
 
-      /* "tensorutils.pyx":120
+      /* "tensorutils.pyx":109
  *             return np.tensordot(As[0].conj(),As[0],axes=[path,path])
  *         elif len(As) == 2:
  *             return np.tensordot(As[0].conj(),As[1],axes=[path,path])             # <<<<<<<<<<<<<<
- *     else:
+ *     elif isinstance(spfovs,list):
  *         output = As[0].conj()
  */
       __Pyx_XDECREF(__pyx_r);
-      __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_np); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 120, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
-      __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 120, __pyx_L1_error)
+      __Pyx_GetModuleGlobalName(__pyx_t_7, __pyx_n_s_np); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 109, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
+      __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_t_7, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 109, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_11);
+      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+      __pyx_t_10 = __Pyx_GetItemInt_Tuple(__pyx_v_As, 0, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 109, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_10);
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      __pyx_t_9 = __Pyx_GetItemInt_Tuple(__pyx_v_As, 0, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 120, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_9);
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_t_9, __pyx_n_s_conj); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 120, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_1);
-      __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-      __pyx_t_9 = NULL;
-      if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_1))) {
-        __pyx_t_9 = PyMethod_GET_SELF(__pyx_t_1);
-        if (likely(__pyx_t_9)) {
-          PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_1);
-          __Pyx_INCREF(__pyx_t_9);
+      __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_n_s_conj); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 109, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+      __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+      __pyx_t_10 = NULL;
+      if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_3))) {
+        __pyx_t_10 = PyMethod_GET_SELF(__pyx_t_3);
+        if (likely(__pyx_t_10)) {
+          PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_3);
+          __Pyx_INCREF(__pyx_t_10);
           __Pyx_INCREF(function);
-          __Pyx_DECREF_SET(__pyx_t_1, function);
+          __Pyx_DECREF_SET(__pyx_t_3, function);
         }
       }
-      __pyx_t_6 = (__pyx_t_9) ? __Pyx_PyObject_CallOneArg(__pyx_t_1, __pyx_t_9) : __Pyx_PyObject_CallNoArg(__pyx_t_1);
-      __Pyx_XDECREF(__pyx_t_9); __pyx_t_9 = 0;
-      if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 120, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
-      __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-      __pyx_t_1 = __Pyx_GetItemInt_Tuple(__pyx_v_As, 1, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 120, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_1);
-      __pyx_t_9 = PyTuple_New(2); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 120, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_9);
-      __Pyx_GIVEREF(__pyx_t_6);
-      PyTuple_SET_ITEM(__pyx_t_9, 0, __pyx_t_6);
-      __Pyx_GIVEREF(__pyx_t_1);
-      PyTuple_SET_ITEM(__pyx_t_9, 1, __pyx_t_1);
-      __pyx_t_6 = 0;
-      __pyx_t_1 = 0;
-      __pyx_t_1 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 120, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_1);
-      __pyx_t_6 = PyList_New(2); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 120, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
+      __pyx_t_7 = (__pyx_t_10) ? __Pyx_PyObject_CallOneArg(__pyx_t_3, __pyx_t_10) : __Pyx_PyObject_CallNoArg(__pyx_t_3);
+      __Pyx_XDECREF(__pyx_t_10); __pyx_t_10 = 0;
+      if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 109, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+      __pyx_t_3 = __Pyx_GetItemInt_Tuple(__pyx_v_As, 1, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 109, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+      __pyx_t_10 = PyTuple_New(2); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 109, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_10);
+      __Pyx_GIVEREF(__pyx_t_7);
+      PyTuple_SET_ITEM(__pyx_t_10, 0, __pyx_t_7);
+      __Pyx_GIVEREF(__pyx_t_3);
+      PyTuple_SET_ITEM(__pyx_t_10, 1, __pyx_t_3);
+      __pyx_t_7 = 0;
+      __pyx_t_3 = 0;
+      __pyx_t_3 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 109, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_3);
+      __pyx_t_7 = PyList_New(2); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 109, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
       __Pyx_INCREF(__pyx_v_path);
       __Pyx_GIVEREF(__pyx_v_path);
-      PyList_SET_ITEM(__pyx_t_6, 0, __pyx_v_path);
+      PyList_SET_ITEM(__pyx_t_7, 0, __pyx_v_path);
       __Pyx_INCREF(__pyx_v_path);
       __Pyx_GIVEREF(__pyx_v_path);
-      PyList_SET_ITEM(__pyx_t_6, 1, __pyx_v_path);
-      if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_axes, __pyx_t_6) < 0) __PYX_ERR(0, 120, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      __pyx_t_6 = __Pyx_PyObject_Call(__pyx_t_10, __pyx_t_9, __pyx_t_1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 120, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
+      PyList_SET_ITEM(__pyx_t_7, 1, __pyx_v_path);
+      if (PyDict_SetItem(__pyx_t_3, __pyx_n_s_axes, __pyx_t_7) < 0) __PYX_ERR(0, 109, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+      __pyx_t_7 = __Pyx_PyObject_Call(__pyx_t_11, __pyx_t_10, __pyx_t_3); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 109, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
+      __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
       __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-      __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-      __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-      __pyx_r = __pyx_t_6;
-      __pyx_t_6 = 0;
+      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+      __pyx_r = __pyx_t_7;
+      __pyx_t_7 = 0;
       goto __pyx_L0;
 
-      /* "tensorutils.pyx":119
+      /* "tensorutils.pyx":108
  *         if len(As) == 1:
  *             return np.tensordot(As[0].conj(),As[0],axes=[path,path])
  *         elif len(As) == 2:             # <<<<<<<<<<<<<<
  *             return np.tensordot(As[0].conj(),As[1],axes=[path,path])
- *     else:
+ *     elif isinstance(spfovs,list):
  */
     }
 
-    /* "tensorutils.pyx":113
+    /* "tensorutils.pyx":102
  *     cdef list path2
  *     # generate the initial list of indices, which will all be independent
- *     if spfovs == None:             # <<<<<<<<<<<<<<
+ *     if spfovs is None:             # <<<<<<<<<<<<<<
  *         path = [i for i in range(nmodes)]
  *         for i in range(len(modes)):
  */
     goto __pyx_L3;
   }
 
-  /* "tensorutils.pyx":122
+  /* "tensorutils.pyx":110
+ *         elif len(As) == 2:
  *             return np.tensordot(As[0].conj(),As[1],axes=[path,path])
- *     else:
+ *     elif isinstance(spfovs,list):             # <<<<<<<<<<<<<<
+ *         output = As[0].conj()
+ *         count = 0
+ */
+  __pyx_t_2 = PyList_Check(__pyx_v_spfovs); 
+  __pyx_t_1 = (__pyx_t_2 != 0);
+  if (__pyx_t_1) {
+
+    /* "tensorutils.pyx":111
+ *             return np.tensordot(As[0].conj(),As[1],axes=[path,path])
+ *     elif isinstance(spfovs,list):
  *         output = As[0].conj()             # <<<<<<<<<<<<<<
  *         count = 0
  *         path1 = []
  */
-  /*else*/ {
-    __pyx_t_1 = __Pyx_GetItemInt_Tuple(__pyx_v_As, 0, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 122, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_conj); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 122, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_9);
-    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_1 = NULL;
-    if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_9))) {
-      __pyx_t_1 = PyMethod_GET_SELF(__pyx_t_9);
-      if (likely(__pyx_t_1)) {
-        PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_9);
-        __Pyx_INCREF(__pyx_t_1);
+    __pyx_t_3 = __Pyx_GetItemInt_Tuple(__pyx_v_As, 0, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 111, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_3);
+    __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_n_s_conj); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 111, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_10);
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    __pyx_t_3 = NULL;
+    if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_10))) {
+      __pyx_t_3 = PyMethod_GET_SELF(__pyx_t_10);
+      if (likely(__pyx_t_3)) {
+        PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_10);
+        __Pyx_INCREF(__pyx_t_3);
         __Pyx_INCREF(function);
-        __Pyx_DECREF_SET(__pyx_t_9, function);
+        __Pyx_DECREF_SET(__pyx_t_10, function);
       }
     }
-    __pyx_t_6 = (__pyx_t_1) ? __Pyx_PyObject_CallOneArg(__pyx_t_9, __pyx_t_1) : __Pyx_PyObject_CallNoArg(__pyx_t_9);
-    __Pyx_XDECREF(__pyx_t_1); __pyx_t_1 = 0;
-    if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 122, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_6);
-    __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-    if (!(likely(((__pyx_t_6) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_6, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 122, __pyx_L1_error)
-    __pyx_v_output = ((PyArrayObject *)__pyx_t_6);
-    __pyx_t_6 = 0;
+    __pyx_t_7 = (__pyx_t_3) ? __Pyx_PyObject_CallOneArg(__pyx_t_10, __pyx_t_3) : __Pyx_PyObject_CallNoArg(__pyx_t_10);
+    __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
+    if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 111, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+    if (!(likely(((__pyx_t_7) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_7, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 111, __pyx_L1_error)
+    __pyx_v_output = ((PyArrayObject *)__pyx_t_7);
+    __pyx_t_7 = 0;
 
-    /* "tensorutils.pyx":123
- *     else:
+    /* "tensorutils.pyx":112
+ *     elif isinstance(spfovs,list):
  *         output = As[0].conj()
  *         count = 0             # <<<<<<<<<<<<<<
  *         path1 = []
@@ -3324,57 +3510,57 @@ static PyObject *__pyx_pf_11tensorutils_2atensorcontract(CYTHON_UNUSED PyObject 
  */
     __pyx_v_count = 0;
 
-    /* "tensorutils.pyx":124
+    /* "tensorutils.pyx":113
  *         output = As[0].conj()
  *         count = 0
  *         path1 = []             # <<<<<<<<<<<<<<
  *         path2 = []
  *         for i in range(nmodes):
  */
-    __pyx_t_6 = PyList_New(0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 124, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_6);
-    __pyx_v_path1 = ((PyObject*)__pyx_t_6);
-    __pyx_t_6 = 0;
+    __pyx_t_7 = PyList_New(0); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 113, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __pyx_v_path1 = ((PyObject*)__pyx_t_7);
+    __pyx_t_7 = 0;
 
-    /* "tensorutils.pyx":125
+    /* "tensorutils.pyx":114
  *         count = 0
  *         path1 = []
  *         path2 = []             # <<<<<<<<<<<<<<
  *         for i in range(nmodes):
  *             if not i in modes:
  */
-    __pyx_t_6 = PyList_New(0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 125, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_6);
-    __pyx_v_path2 = ((PyObject*)__pyx_t_6);
-    __pyx_t_6 = 0;
+    __pyx_t_7 = PyList_New(0); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 114, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __pyx_v_path2 = ((PyObject*)__pyx_t_7);
+    __pyx_t_7 = 0;
 
-    /* "tensorutils.pyx":126
+    /* "tensorutils.pyx":115
  *         path1 = []
  *         path2 = []
  *         for i in range(nmodes):             # <<<<<<<<<<<<<<
  *             if not i in modes:
  *                 path1.append(i+len(modes)-count)
  */
-    __pyx_t_3 = __pyx_v_nmodes;
-    __pyx_t_4 = __pyx_t_3;
-    for (__pyx_t_5 = 0; __pyx_t_5 < __pyx_t_4; __pyx_t_5+=1) {
-      __pyx_v_i = __pyx_t_5;
+    __pyx_t_4 = __pyx_v_nmodes;
+    __pyx_t_5 = __pyx_t_4;
+    for (__pyx_t_6 = 0; __pyx_t_6 < __pyx_t_5; __pyx_t_6+=1) {
+      __pyx_v_i = __pyx_t_6;
 
-      /* "tensorutils.pyx":127
+      /* "tensorutils.pyx":116
  *         path2 = []
  *         for i in range(nmodes):
  *             if not i in modes:             # <<<<<<<<<<<<<<
  *                 path1.append(i+len(modes)-count)
  *                 path2.append(i)
  */
-      __pyx_t_6 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 127, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_6);
-      __pyx_t_2 = (__Pyx_PySequence_ContainsTF(__pyx_t_6, __pyx_v_modes, Py_NE)); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 127, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      __pyx_t_11 = (__pyx_t_2 != 0);
-      if (__pyx_t_11) {
+      __pyx_t_7 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 116, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
+      __pyx_t_1 = (__Pyx_PySequence_ContainsTF(__pyx_t_7, __pyx_v_modes, Py_NE)); if (unlikely(__pyx_t_1 < 0)) __PYX_ERR(0, 116, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+      __pyx_t_2 = (__pyx_t_1 != 0);
+      if (__pyx_t_2) {
 
-        /* "tensorutils.pyx":128
+        /* "tensorutils.pyx":117
  *         for i in range(nmodes):
  *             if not i in modes:
  *                 path1.append(i+len(modes)-count)             # <<<<<<<<<<<<<<
@@ -3383,110 +3569,110 @@ static PyObject *__pyx_pf_11tensorutils_2atensorcontract(CYTHON_UNUSED PyObject 
  */
         if (unlikely(__pyx_v_modes == Py_None)) {
           PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-          __PYX_ERR(0, 128, __pyx_L1_error)
+          __PYX_ERR(0, 117, __pyx_L1_error)
         }
-        __pyx_t_7 = PyList_GET_SIZE(__pyx_v_modes); if (unlikely(__pyx_t_7 == ((Py_ssize_t)-1))) __PYX_ERR(0, 128, __pyx_L1_error)
-        __pyx_t_6 = PyInt_FromSsize_t(((__pyx_v_i + __pyx_t_7) - __pyx_v_count)); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 128, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_6);
-        __pyx_t_12 = __Pyx_PyList_Append(__pyx_v_path1, __pyx_t_6); if (unlikely(__pyx_t_12 == ((int)-1))) __PYX_ERR(0, 128, __pyx_L1_error)
-        __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+        __pyx_t_8 = PyList_GET_SIZE(__pyx_v_modes); if (unlikely(__pyx_t_8 == ((Py_ssize_t)-1))) __PYX_ERR(0, 117, __pyx_L1_error)
+        __pyx_t_7 = PyInt_FromSsize_t(((__pyx_v_i + __pyx_t_8) - __pyx_v_count)); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 117, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_7);
+        __pyx_t_12 = __Pyx_PyList_Append(__pyx_v_path1, __pyx_t_7); if (unlikely(__pyx_t_12 == ((int)-1))) __PYX_ERR(0, 117, __pyx_L1_error)
+        __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
 
-        /* "tensorutils.pyx":129
+        /* "tensorutils.pyx":118
  *             if not i in modes:
  *                 path1.append(i+len(modes)-count)
  *                 path2.append(i)             # <<<<<<<<<<<<<<
  *                 if spfovsconj:
  *                     output = np.tensordot(output,spfovs[i].conj(),axes=[[count],[1]])
  */
-        __pyx_t_6 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 129, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_6);
-        __pyx_t_12 = __Pyx_PyList_Append(__pyx_v_path2, __pyx_t_6); if (unlikely(__pyx_t_12 == ((int)-1))) __PYX_ERR(0, 129, __pyx_L1_error)
-        __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
+        __pyx_t_7 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 118, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_7);
+        __pyx_t_12 = __Pyx_PyList_Append(__pyx_v_path2, __pyx_t_7); if (unlikely(__pyx_t_12 == ((int)-1))) __PYX_ERR(0, 118, __pyx_L1_error)
+        __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
 
-        /* "tensorutils.pyx":130
+        /* "tensorutils.pyx":119
  *                 path1.append(i+len(modes)-count)
  *                 path2.append(i)
  *                 if spfovsconj:             # <<<<<<<<<<<<<<
  *                     output = np.tensordot(output,spfovs[i].conj(),axes=[[count],[1]])
  *                 else:
  */
-        __pyx_t_11 = __Pyx_PyObject_IsTrue(__pyx_v_spfovsconj); if (unlikely(__pyx_t_11 < 0)) __PYX_ERR(0, 130, __pyx_L1_error)
-        if (__pyx_t_11) {
+        __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_v_spfovsconj); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 119, __pyx_L1_error)
+        if (__pyx_t_2) {
 
-          /* "tensorutils.pyx":131
+          /* "tensorutils.pyx":120
  *                 path2.append(i)
  *                 if spfovsconj:
  *                     output = np.tensordot(output,spfovs[i].conj(),axes=[[count],[1]])             # <<<<<<<<<<<<<<
  *                 else:
  *                     output = np.tensordot(output,spfovs[i],axes=[[count],[0]])
  */
-          __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_n_s_np); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 131, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_6);
-          __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 131, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_9);
-          __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-          __pyx_t_1 = __Pyx_GetItemInt(__pyx_v_spfovs, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 131, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_1);
-          __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_conj); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 131, __pyx_L1_error)
+          __Pyx_GetModuleGlobalName(__pyx_t_7, __pyx_n_s_np); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 120, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_7);
+          __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_7, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 120, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_10);
-          __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-          __pyx_t_1 = NULL;
-          if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_10))) {
-            __pyx_t_1 = PyMethod_GET_SELF(__pyx_t_10);
-            if (likely(__pyx_t_1)) {
-              PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_10);
-              __Pyx_INCREF(__pyx_t_1);
+          __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+          __pyx_t_3 = __Pyx_GetItemInt(__pyx_v_spfovs, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 120, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_3);
+          __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_n_s_conj); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 120, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_11);
+          __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+          __pyx_t_3 = NULL;
+          if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_11))) {
+            __pyx_t_3 = PyMethod_GET_SELF(__pyx_t_11);
+            if (likely(__pyx_t_3)) {
+              PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_11);
+              __Pyx_INCREF(__pyx_t_3);
               __Pyx_INCREF(function);
-              __Pyx_DECREF_SET(__pyx_t_10, function);
+              __Pyx_DECREF_SET(__pyx_t_11, function);
             }
           }
-          __pyx_t_6 = (__pyx_t_1) ? __Pyx_PyObject_CallOneArg(__pyx_t_10, __pyx_t_1) : __Pyx_PyObject_CallNoArg(__pyx_t_10);
-          __Pyx_XDECREF(__pyx_t_1); __pyx_t_1 = 0;
-          if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 131, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_6);
-          __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-          __pyx_t_10 = PyTuple_New(2); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 131, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_10);
+          __pyx_t_7 = (__pyx_t_3) ? __Pyx_PyObject_CallOneArg(__pyx_t_11, __pyx_t_3) : __Pyx_PyObject_CallNoArg(__pyx_t_11);
+          __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
+          if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 120, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_7);
+          __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
+          __pyx_t_11 = PyTuple_New(2); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 120, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_11);
           __Pyx_INCREF(((PyObject *)__pyx_v_output));
           __Pyx_GIVEREF(((PyObject *)__pyx_v_output));
-          PyTuple_SET_ITEM(__pyx_t_10, 0, ((PyObject *)__pyx_v_output));
-          __Pyx_GIVEREF(__pyx_t_6);
-          PyTuple_SET_ITEM(__pyx_t_10, 1, __pyx_t_6);
-          __pyx_t_6 = 0;
-          __pyx_t_6 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 131, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_6);
-          __pyx_t_1 = __Pyx_PyInt_From_int(__pyx_v_count); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 131, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_1);
-          __pyx_t_13 = PyList_New(1); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 131, __pyx_L1_error)
+          PyTuple_SET_ITEM(__pyx_t_11, 0, ((PyObject *)__pyx_v_output));
+          __Pyx_GIVEREF(__pyx_t_7);
+          PyTuple_SET_ITEM(__pyx_t_11, 1, __pyx_t_7);
+          __pyx_t_7 = 0;
+          __pyx_t_7 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 120, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_7);
+          __pyx_t_3 = __Pyx_PyInt_From_int(__pyx_v_count); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 120, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_3);
+          __pyx_t_13 = PyList_New(1); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 120, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_13);
-          __Pyx_GIVEREF(__pyx_t_1);
-          PyList_SET_ITEM(__pyx_t_13, 0, __pyx_t_1);
-          __pyx_t_1 = 0;
-          __pyx_t_1 = PyList_New(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 131, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_1);
+          __Pyx_GIVEREF(__pyx_t_3);
+          PyList_SET_ITEM(__pyx_t_13, 0, __pyx_t_3);
+          __pyx_t_3 = 0;
+          __pyx_t_3 = PyList_New(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 120, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_3);
           __Pyx_INCREF(__pyx_int_1);
           __Pyx_GIVEREF(__pyx_int_1);
-          PyList_SET_ITEM(__pyx_t_1, 0, __pyx_int_1);
-          __pyx_t_14 = PyList_New(2); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 131, __pyx_L1_error)
+          PyList_SET_ITEM(__pyx_t_3, 0, __pyx_int_1);
+          __pyx_t_14 = PyList_New(2); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 120, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_14);
           __Pyx_GIVEREF(__pyx_t_13);
           PyList_SET_ITEM(__pyx_t_14, 0, __pyx_t_13);
-          __Pyx_GIVEREF(__pyx_t_1);
-          PyList_SET_ITEM(__pyx_t_14, 1, __pyx_t_1);
+          __Pyx_GIVEREF(__pyx_t_3);
+          PyList_SET_ITEM(__pyx_t_14, 1, __pyx_t_3);
           __pyx_t_13 = 0;
-          __pyx_t_1 = 0;
-          if (PyDict_SetItem(__pyx_t_6, __pyx_n_s_axes, __pyx_t_14) < 0) __PYX_ERR(0, 131, __pyx_L1_error)
+          __pyx_t_3 = 0;
+          if (PyDict_SetItem(__pyx_t_7, __pyx_n_s_axes, __pyx_t_14) < 0) __PYX_ERR(0, 120, __pyx_L1_error)
           __Pyx_DECREF(__pyx_t_14); __pyx_t_14 = 0;
-          __pyx_t_14 = __Pyx_PyObject_Call(__pyx_t_9, __pyx_t_10, __pyx_t_6); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 131, __pyx_L1_error)
+          __pyx_t_14 = __Pyx_PyObject_Call(__pyx_t_10, __pyx_t_11, __pyx_t_7); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 120, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_14);
-          __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
           __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-          __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-          if (!(likely(((__pyx_t_14) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_14, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 131, __pyx_L1_error)
+          __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
+          __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+          if (!(likely(((__pyx_t_14) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_14, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 120, __pyx_L1_error)
           __Pyx_DECREF_SET(__pyx_v_output, ((PyArrayObject *)__pyx_t_14));
           __pyx_t_14 = 0;
 
-          /* "tensorutils.pyx":130
+          /* "tensorutils.pyx":119
  *                 path1.append(i+len(modes)-count)
  *                 path2.append(i)
  *                 if spfovsconj:             # <<<<<<<<<<<<<<
@@ -3496,7 +3682,7 @@ static PyObject *__pyx_pf_11tensorutils_2atensorcontract(CYTHON_UNUSED PyObject 
           goto __pyx_L12;
         }
 
-        /* "tensorutils.pyx":133
+        /* "tensorutils.pyx":122
  *                     output = np.tensordot(output,spfovs[i].conj(),axes=[[count],[1]])
  *                 else:
  *                     output = np.tensordot(output,spfovs[i],axes=[[count],[0]])             # <<<<<<<<<<<<<<
@@ -3504,57 +3690,57 @@ static PyObject *__pyx_pf_11tensorutils_2atensorcontract(CYTHON_UNUSED PyObject 
  *                 count += 1
  */
         /*else*/ {
-          __Pyx_GetModuleGlobalName(__pyx_t_14, __pyx_n_s_np); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 133, __pyx_L1_error)
+          __Pyx_GetModuleGlobalName(__pyx_t_14, __pyx_n_s_np); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 122, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_14);
-          __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_14, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 133, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_6);
+          __pyx_t_7 = __Pyx_PyObject_GetAttrStr(__pyx_t_14, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 122, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_7);
           __Pyx_DECREF(__pyx_t_14); __pyx_t_14 = 0;
-          __pyx_t_14 = __Pyx_GetItemInt(__pyx_v_spfovs, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 133, __pyx_L1_error)
+          __pyx_t_14 = __Pyx_GetItemInt(__pyx_v_spfovs, __pyx_v_i, int, 1, __Pyx_PyInt_From_int, 0, 1, 1); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 122, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_14);
-          __pyx_t_10 = PyTuple_New(2); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 133, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_10);
+          __pyx_t_11 = PyTuple_New(2); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 122, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_11);
           __Pyx_INCREF(((PyObject *)__pyx_v_output));
           __Pyx_GIVEREF(((PyObject *)__pyx_v_output));
-          PyTuple_SET_ITEM(__pyx_t_10, 0, ((PyObject *)__pyx_v_output));
+          PyTuple_SET_ITEM(__pyx_t_11, 0, ((PyObject *)__pyx_v_output));
           __Pyx_GIVEREF(__pyx_t_14);
-          PyTuple_SET_ITEM(__pyx_t_10, 1, __pyx_t_14);
+          PyTuple_SET_ITEM(__pyx_t_11, 1, __pyx_t_14);
           __pyx_t_14 = 0;
-          __pyx_t_14 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 133, __pyx_L1_error)
+          __pyx_t_14 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 122, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_14);
-          __pyx_t_9 = __Pyx_PyInt_From_int(__pyx_v_count); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 133, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_9);
-          __pyx_t_1 = PyList_New(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 133, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_1);
-          __Pyx_GIVEREF(__pyx_t_9);
-          PyList_SET_ITEM(__pyx_t_1, 0, __pyx_t_9);
-          __pyx_t_9 = 0;
-          __pyx_t_9 = PyList_New(1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 133, __pyx_L1_error)
-          __Pyx_GOTREF(__pyx_t_9);
+          __pyx_t_10 = __Pyx_PyInt_From_int(__pyx_v_count); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 122, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_10);
+          __pyx_t_3 = PyList_New(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 122, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_3);
+          __Pyx_GIVEREF(__pyx_t_10);
+          PyList_SET_ITEM(__pyx_t_3, 0, __pyx_t_10);
+          __pyx_t_10 = 0;
+          __pyx_t_10 = PyList_New(1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 122, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_10);
           __Pyx_INCREF(__pyx_int_0);
           __Pyx_GIVEREF(__pyx_int_0);
-          PyList_SET_ITEM(__pyx_t_9, 0, __pyx_int_0);
-          __pyx_t_13 = PyList_New(2); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 133, __pyx_L1_error)
+          PyList_SET_ITEM(__pyx_t_10, 0, __pyx_int_0);
+          __pyx_t_13 = PyList_New(2); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 122, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_13);
-          __Pyx_GIVEREF(__pyx_t_1);
-          PyList_SET_ITEM(__pyx_t_13, 0, __pyx_t_1);
-          __Pyx_GIVEREF(__pyx_t_9);
-          PyList_SET_ITEM(__pyx_t_13, 1, __pyx_t_9);
-          __pyx_t_1 = 0;
-          __pyx_t_9 = 0;
-          if (PyDict_SetItem(__pyx_t_14, __pyx_n_s_axes, __pyx_t_13) < 0) __PYX_ERR(0, 133, __pyx_L1_error)
+          __Pyx_GIVEREF(__pyx_t_3);
+          PyList_SET_ITEM(__pyx_t_13, 0, __pyx_t_3);
+          __Pyx_GIVEREF(__pyx_t_10);
+          PyList_SET_ITEM(__pyx_t_13, 1, __pyx_t_10);
+          __pyx_t_3 = 0;
+          __pyx_t_10 = 0;
+          if (PyDict_SetItem(__pyx_t_14, __pyx_n_s_axes, __pyx_t_13) < 0) __PYX_ERR(0, 122, __pyx_L1_error)
           __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
-          __pyx_t_13 = __Pyx_PyObject_Call(__pyx_t_6, __pyx_t_10, __pyx_t_14); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 133, __pyx_L1_error)
+          __pyx_t_13 = __Pyx_PyObject_Call(__pyx_t_7, __pyx_t_11, __pyx_t_14); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 122, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_13);
-          __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-          __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+          __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+          __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
           __Pyx_DECREF(__pyx_t_14); __pyx_t_14 = 0;
-          if (!(likely(((__pyx_t_13) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_13, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 133, __pyx_L1_error)
+          if (!(likely(((__pyx_t_13) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_13, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 122, __pyx_L1_error)
           __Pyx_DECREF_SET(__pyx_v_output, ((PyArrayObject *)__pyx_t_13));
           __pyx_t_13 = 0;
         }
         __pyx_L12:;
 
-        /* "tensorutils.pyx":127
+        /* "tensorutils.pyx":116
  *         path2 = []
  *         for i in range(nmodes):
  *             if not i in modes:             # <<<<<<<<<<<<<<
@@ -3564,8 +3750,350 @@ static PyObject *__pyx_pf_11tensorutils_2atensorcontract(CYTHON_UNUSED PyObject 
         goto __pyx_L11;
       }
 
-      /* "tensorutils.pyx":135
+      /* "tensorutils.pyx":124
  *                     output = np.tensordot(output,spfovs[i],axes=[[count],[0]])
+ *             else:
+ *                 count += 1             # <<<<<<<<<<<<<<
+ *         return np.tensordot(output,As[1],axes=[path1,path2])
+ *     else:
+ */
+      /*else*/ {
+        __pyx_v_count = (__pyx_v_count + 1);
+      }
+      __pyx_L11:;
+    }
+
+    /* "tensorutils.pyx":125
+ *             else:
+ *                 count += 1
+ *         return np.tensordot(output,As[1],axes=[path1,path2])             # <<<<<<<<<<<<<<
+ *     else:
+ *         output = As[0].conj()
+ */
+    __Pyx_XDECREF(__pyx_r);
+    __Pyx_GetModuleGlobalName(__pyx_t_13, __pyx_n_s_np); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 125, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_13);
+    __pyx_t_14 = __Pyx_PyObject_GetAttrStr(__pyx_t_13, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 125, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_14);
+    __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
+    __pyx_t_13 = __Pyx_GetItemInt_Tuple(__pyx_v_As, 1, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 125, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_13);
+    __pyx_t_11 = PyTuple_New(2); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 125, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_11);
+    __Pyx_INCREF(((PyObject *)__pyx_v_output));
+    __Pyx_GIVEREF(((PyObject *)__pyx_v_output));
+    PyTuple_SET_ITEM(__pyx_t_11, 0, ((PyObject *)__pyx_v_output));
+    __Pyx_GIVEREF(__pyx_t_13);
+    PyTuple_SET_ITEM(__pyx_t_11, 1, __pyx_t_13);
+    __pyx_t_13 = 0;
+    __pyx_t_13 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 125, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_13);
+    __pyx_t_7 = PyList_New(2); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 125, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __Pyx_INCREF(__pyx_v_path1);
+    __Pyx_GIVEREF(__pyx_v_path1);
+    PyList_SET_ITEM(__pyx_t_7, 0, __pyx_v_path1);
+    __Pyx_INCREF(__pyx_v_path2);
+    __Pyx_GIVEREF(__pyx_v_path2);
+    PyList_SET_ITEM(__pyx_t_7, 1, __pyx_v_path2);
+    if (PyDict_SetItem(__pyx_t_13, __pyx_n_s_axes, __pyx_t_7) < 0) __PYX_ERR(0, 125, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+    __pyx_t_7 = __Pyx_PyObject_Call(__pyx_t_14, __pyx_t_11, __pyx_t_13); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 125, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __Pyx_DECREF(__pyx_t_14); __pyx_t_14 = 0;
+    __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
+    __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
+    __pyx_r = __pyx_t_7;
+    __pyx_t_7 = 0;
+    goto __pyx_L0;
+
+    /* "tensorutils.pyx":110
+ *         elif len(As) == 2:
+ *             return np.tensordot(As[0].conj(),As[1],axes=[path,path])
+ *     elif isinstance(spfovs,list):             # <<<<<<<<<<<<<<
+ *         output = As[0].conj()
+ *         count = 0
+ */
+  }
+
+  /* "tensorutils.pyx":127
+ *         return np.tensordot(output,As[1],axes=[path1,path2])
+ *     else:
+ *         output = As[0].conj()             # <<<<<<<<<<<<<<
+ *         count = 0
+ *         path1 = []
+ */
+  /*else*/ {
+    __pyx_t_13 = __Pyx_GetItemInt_Tuple(__pyx_v_As, 0, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 127, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_13);
+    __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_t_13, __pyx_n_s_conj); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 127, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_11);
+    __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
+    __pyx_t_13 = NULL;
+    if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_11))) {
+      __pyx_t_13 = PyMethod_GET_SELF(__pyx_t_11);
+      if (likely(__pyx_t_13)) {
+        PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_11);
+        __Pyx_INCREF(__pyx_t_13);
+        __Pyx_INCREF(function);
+        __Pyx_DECREF_SET(__pyx_t_11, function);
+      }
+    }
+    __pyx_t_7 = (__pyx_t_13) ? __Pyx_PyObject_CallOneArg(__pyx_t_11, __pyx_t_13) : __Pyx_PyObject_CallNoArg(__pyx_t_11);
+    __Pyx_XDECREF(__pyx_t_13); __pyx_t_13 = 0;
+    if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 127, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
+    if (!(likely(((__pyx_t_7) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_7, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 127, __pyx_L1_error)
+    __pyx_v_output = ((PyArrayObject *)__pyx_t_7);
+    __pyx_t_7 = 0;
+
+    /* "tensorutils.pyx":128
+ *     else:
+ *         output = As[0].conj()
+ *         count = 0             # <<<<<<<<<<<<<<
+ *         path1 = []
+ *         path2 = []
+ */
+    __pyx_v_count = 0;
+
+    /* "tensorutils.pyx":129
+ *         output = As[0].conj()
+ *         count = 0
+ *         path1 = []             # <<<<<<<<<<<<<<
+ *         path2 = []
+ *         for i in range(nmodes):
+ */
+    __pyx_t_7 = PyList_New(0); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 129, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __pyx_v_path1 = ((PyObject*)__pyx_t_7);
+    __pyx_t_7 = 0;
+
+    /* "tensorutils.pyx":130
+ *         count = 0
+ *         path1 = []
+ *         path2 = []             # <<<<<<<<<<<<<<
+ *         for i in range(nmodes):
+ *             if not i in modes:
+ */
+    __pyx_t_7 = PyList_New(0); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 130, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __pyx_v_path2 = ((PyObject*)__pyx_t_7);
+    __pyx_t_7 = 0;
+
+    /* "tensorutils.pyx":131
+ *         path1 = []
+ *         path2 = []
+ *         for i in range(nmodes):             # <<<<<<<<<<<<<<
+ *             if not i in modes:
+ *                 path1.append(i+len(modes)-count)
+ */
+    __pyx_t_4 = __pyx_v_nmodes;
+    __pyx_t_5 = __pyx_t_4;
+    for (__pyx_t_6 = 0; __pyx_t_6 < __pyx_t_5; __pyx_t_6+=1) {
+      __pyx_v_i = __pyx_t_6;
+
+      /* "tensorutils.pyx":132
+ *         path2 = []
+ *         for i in range(nmodes):
+ *             if not i in modes:             # <<<<<<<<<<<<<<
+ *                 path1.append(i+len(modes)-count)
+ *                 path2.append(i)
+ */
+      __pyx_t_7 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 132, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_7);
+      __pyx_t_2 = (__Pyx_PySequence_ContainsTF(__pyx_t_7, __pyx_v_modes, Py_NE)); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 132, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+      __pyx_t_1 = (__pyx_t_2 != 0);
+      if (__pyx_t_1) {
+
+        /* "tensorutils.pyx":133
+ *         for i in range(nmodes):
+ *             if not i in modes:
+ *                 path1.append(i+len(modes)-count)             # <<<<<<<<<<<<<<
+ *                 path2.append(i)
+ *                 if spfovsconj:
+ */
+        if (unlikely(__pyx_v_modes == Py_None)) {
+          PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
+          __PYX_ERR(0, 133, __pyx_L1_error)
+        }
+        __pyx_t_8 = PyList_GET_SIZE(__pyx_v_modes); if (unlikely(__pyx_t_8 == ((Py_ssize_t)-1))) __PYX_ERR(0, 133, __pyx_L1_error)
+        __pyx_t_7 = PyInt_FromSsize_t(((__pyx_v_i + __pyx_t_8) - __pyx_v_count)); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 133, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_7);
+        __pyx_t_12 = __Pyx_PyList_Append(__pyx_v_path1, __pyx_t_7); if (unlikely(__pyx_t_12 == ((int)-1))) __PYX_ERR(0, 133, __pyx_L1_error)
+        __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+
+        /* "tensorutils.pyx":134
+ *             if not i in modes:
+ *                 path1.append(i+len(modes)-count)
+ *                 path2.append(i)             # <<<<<<<<<<<<<<
+ *                 if spfovsconj:
+ *                     output = np.tensordot(output,spfovs.conj(),axes=[[count],[1]])
+ */
+        __pyx_t_7 = __Pyx_PyInt_From_int(__pyx_v_i); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 134, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_7);
+        __pyx_t_12 = __Pyx_PyList_Append(__pyx_v_path2, __pyx_t_7); if (unlikely(__pyx_t_12 == ((int)-1))) __PYX_ERR(0, 134, __pyx_L1_error)
+        __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+
+        /* "tensorutils.pyx":135
+ *                 path1.append(i+len(modes)-count)
+ *                 path2.append(i)
+ *                 if spfovsconj:             # <<<<<<<<<<<<<<
+ *                     output = np.tensordot(output,spfovs.conj(),axes=[[count],[1]])
+ *                 else:
+ */
+        __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_v_spfovsconj); if (unlikely(__pyx_t_1 < 0)) __PYX_ERR(0, 135, __pyx_L1_error)
+        if (__pyx_t_1) {
+
+          /* "tensorutils.pyx":136
+ *                 path2.append(i)
+ *                 if spfovsconj:
+ *                     output = np.tensordot(output,spfovs.conj(),axes=[[count],[1]])             # <<<<<<<<<<<<<<
+ *                 else:
+ *                     output = np.tensordot(output,spfovs,axes=[[count],[0]])
+ */
+          __Pyx_GetModuleGlobalName(__pyx_t_7, __pyx_n_s_np); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 136, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_7);
+          __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_t_7, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 136, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_11);
+          __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+          __pyx_t_13 = __Pyx_PyObject_GetAttrStr(__pyx_v_spfovs, __pyx_n_s_conj); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 136, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_13);
+          __pyx_t_14 = NULL;
+          if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_13))) {
+            __pyx_t_14 = PyMethod_GET_SELF(__pyx_t_13);
+            if (likely(__pyx_t_14)) {
+              PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_13);
+              __Pyx_INCREF(__pyx_t_14);
+              __Pyx_INCREF(function);
+              __Pyx_DECREF_SET(__pyx_t_13, function);
+            }
+          }
+          __pyx_t_7 = (__pyx_t_14) ? __Pyx_PyObject_CallOneArg(__pyx_t_13, __pyx_t_14) : __Pyx_PyObject_CallNoArg(__pyx_t_13);
+          __Pyx_XDECREF(__pyx_t_14); __pyx_t_14 = 0;
+          if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 136, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_7);
+          __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
+          __pyx_t_13 = PyTuple_New(2); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 136, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_13);
+          __Pyx_INCREF(((PyObject *)__pyx_v_output));
+          __Pyx_GIVEREF(((PyObject *)__pyx_v_output));
+          PyTuple_SET_ITEM(__pyx_t_13, 0, ((PyObject *)__pyx_v_output));
+          __Pyx_GIVEREF(__pyx_t_7);
+          PyTuple_SET_ITEM(__pyx_t_13, 1, __pyx_t_7);
+          __pyx_t_7 = 0;
+          __pyx_t_7 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 136, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_7);
+          __pyx_t_14 = __Pyx_PyInt_From_int(__pyx_v_count); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 136, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_14);
+          __pyx_t_10 = PyList_New(1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 136, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_10);
+          __Pyx_GIVEREF(__pyx_t_14);
+          PyList_SET_ITEM(__pyx_t_10, 0, __pyx_t_14);
+          __pyx_t_14 = 0;
+          __pyx_t_14 = PyList_New(1); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 136, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_14);
+          __Pyx_INCREF(__pyx_int_1);
+          __Pyx_GIVEREF(__pyx_int_1);
+          PyList_SET_ITEM(__pyx_t_14, 0, __pyx_int_1);
+          __pyx_t_3 = PyList_New(2); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 136, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_3);
+          __Pyx_GIVEREF(__pyx_t_10);
+          PyList_SET_ITEM(__pyx_t_3, 0, __pyx_t_10);
+          __Pyx_GIVEREF(__pyx_t_14);
+          PyList_SET_ITEM(__pyx_t_3, 1, __pyx_t_14);
+          __pyx_t_10 = 0;
+          __pyx_t_14 = 0;
+          if (PyDict_SetItem(__pyx_t_7, __pyx_n_s_axes, __pyx_t_3) < 0) __PYX_ERR(0, 136, __pyx_L1_error)
+          __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+          __pyx_t_3 = __Pyx_PyObject_Call(__pyx_t_11, __pyx_t_13, __pyx_t_7); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 136, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_3);
+          __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
+          __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
+          __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+          if (!(likely(((__pyx_t_3) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_3, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 136, __pyx_L1_error)
+          __Pyx_DECREF_SET(__pyx_v_output, ((PyArrayObject *)__pyx_t_3));
+          __pyx_t_3 = 0;
+
+          /* "tensorutils.pyx":135
+ *                 path1.append(i+len(modes)-count)
+ *                 path2.append(i)
+ *                 if spfovsconj:             # <<<<<<<<<<<<<<
+ *                     output = np.tensordot(output,spfovs.conj(),axes=[[count],[1]])
+ *                 else:
+ */
+          goto __pyx_L16;
+        }
+
+        /* "tensorutils.pyx":138
+ *                     output = np.tensordot(output,spfovs.conj(),axes=[[count],[1]])
+ *                 else:
+ *                     output = np.tensordot(output,spfovs,axes=[[count],[0]])             # <<<<<<<<<<<<<<
+ *             else:
+ *                 count += 1
+ */
+        /*else*/ {
+          __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_n_s_np); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 138, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_3);
+          __pyx_t_7 = __Pyx_PyObject_GetAttrStr(__pyx_t_3, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 138, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_7);
+          __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+          __pyx_t_3 = PyTuple_New(2); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 138, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_3);
+          __Pyx_INCREF(((PyObject *)__pyx_v_output));
+          __Pyx_GIVEREF(((PyObject *)__pyx_v_output));
+          PyTuple_SET_ITEM(__pyx_t_3, 0, ((PyObject *)__pyx_v_output));
+          __Pyx_INCREF(__pyx_v_spfovs);
+          __Pyx_GIVEREF(__pyx_v_spfovs);
+          PyTuple_SET_ITEM(__pyx_t_3, 1, __pyx_v_spfovs);
+          __pyx_t_13 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 138, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_13);
+          __pyx_t_11 = __Pyx_PyInt_From_int(__pyx_v_count); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 138, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_11);
+          __pyx_t_14 = PyList_New(1); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 138, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_14);
+          __Pyx_GIVEREF(__pyx_t_11);
+          PyList_SET_ITEM(__pyx_t_14, 0, __pyx_t_11);
+          __pyx_t_11 = 0;
+          __pyx_t_11 = PyList_New(1); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 138, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_11);
+          __Pyx_INCREF(__pyx_int_0);
+          __Pyx_GIVEREF(__pyx_int_0);
+          PyList_SET_ITEM(__pyx_t_11, 0, __pyx_int_0);
+          __pyx_t_10 = PyList_New(2); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 138, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_10);
+          __Pyx_GIVEREF(__pyx_t_14);
+          PyList_SET_ITEM(__pyx_t_10, 0, __pyx_t_14);
+          __Pyx_GIVEREF(__pyx_t_11);
+          PyList_SET_ITEM(__pyx_t_10, 1, __pyx_t_11);
+          __pyx_t_14 = 0;
+          __pyx_t_11 = 0;
+          if (PyDict_SetItem(__pyx_t_13, __pyx_n_s_axes, __pyx_t_10) < 0) __PYX_ERR(0, 138, __pyx_L1_error)
+          __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+          __pyx_t_10 = __Pyx_PyObject_Call(__pyx_t_7, __pyx_t_3, __pyx_t_13); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 138, __pyx_L1_error)
+          __Pyx_GOTREF(__pyx_t_10);
+          __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+          __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+          __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
+          if (!(likely(((__pyx_t_10) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_10, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 138, __pyx_L1_error)
+          __Pyx_DECREF_SET(__pyx_v_output, ((PyArrayObject *)__pyx_t_10));
+          __pyx_t_10 = 0;
+        }
+        __pyx_L16:;
+
+        /* "tensorutils.pyx":132
+ *         path2 = []
+ *         for i in range(nmodes):
+ *             if not i in modes:             # <<<<<<<<<<<<<<
+ *                 path1.append(i+len(modes)-count)
+ *                 path2.append(i)
+ */
+        goto __pyx_L15;
+      }
+
+      /* "tensorutils.pyx":140
+ *                     output = np.tensordot(output,spfovs,axes=[[count],[0]])
  *             else:
  *                 count += 1             # <<<<<<<<<<<<<<
  *         return np.tensordot(output,As[1],axes=[path1,path2])
@@ -3574,56 +4102,56 @@ static PyObject *__pyx_pf_11tensorutils_2atensorcontract(CYTHON_UNUSED PyObject 
       /*else*/ {
         __pyx_v_count = (__pyx_v_count + 1);
       }
-      __pyx_L11:;
+      __pyx_L15:;
     }
 
-    /* "tensorutils.pyx":136
+    /* "tensorutils.pyx":141
  *             else:
  *                 count += 1
  *         return np.tensordot(output,As[1],axes=[path1,path2])             # <<<<<<<<<<<<<<
  * 
- * def ahtensorcontract(int nmodes,cnp.ndarray A,cnp.ndarray[complex, ndim=2] h,int order,conj=False):
+ * def ahtensorcontract(int nmodes,cnp.ndarray A,cnp.ndarray[complex, ndim=2, mode='c'] h,int order,conj=False):
  */
     __Pyx_XDECREF(__pyx_r);
-    __Pyx_GetModuleGlobalName(__pyx_t_13, __pyx_n_s_np); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 136, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_13);
-    __pyx_t_14 = __Pyx_PyObject_GetAttrStr(__pyx_t_13, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 136, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_14);
-    __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
-    __pyx_t_13 = __Pyx_GetItemInt_Tuple(__pyx_v_As, 1, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 136, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_13);
-    __pyx_t_10 = PyTuple_New(2); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 136, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_n_s_np); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 141, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_10);
+    __pyx_t_13 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 141, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_13);
+    __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+    __pyx_t_10 = __Pyx_GetItemInt_Tuple(__pyx_v_As, 1, long, 1, __Pyx_PyInt_From_long, 0, 0, 1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 141, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_10);
+    __pyx_t_3 = PyTuple_New(2); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 141, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_3);
     __Pyx_INCREF(((PyObject *)__pyx_v_output));
     __Pyx_GIVEREF(((PyObject *)__pyx_v_output));
-    PyTuple_SET_ITEM(__pyx_t_10, 0, ((PyObject *)__pyx_v_output));
-    __Pyx_GIVEREF(__pyx_t_13);
-    PyTuple_SET_ITEM(__pyx_t_10, 1, __pyx_t_13);
-    __pyx_t_13 = 0;
-    __pyx_t_13 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 136, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_13);
-    __pyx_t_6 = PyList_New(2); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 136, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_6);
+    PyTuple_SET_ITEM(__pyx_t_3, 0, ((PyObject *)__pyx_v_output));
+    __Pyx_GIVEREF(__pyx_t_10);
+    PyTuple_SET_ITEM(__pyx_t_3, 1, __pyx_t_10);
+    __pyx_t_10 = 0;
+    __pyx_t_10 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 141, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_10);
+    __pyx_t_7 = PyList_New(2); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 141, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
     __Pyx_INCREF(__pyx_v_path1);
     __Pyx_GIVEREF(__pyx_v_path1);
-    PyList_SET_ITEM(__pyx_t_6, 0, __pyx_v_path1);
+    PyList_SET_ITEM(__pyx_t_7, 0, __pyx_v_path1);
     __Pyx_INCREF(__pyx_v_path2);
     __Pyx_GIVEREF(__pyx_v_path2);
-    PyList_SET_ITEM(__pyx_t_6, 1, __pyx_v_path2);
-    if (PyDict_SetItem(__pyx_t_13, __pyx_n_s_axes, __pyx_t_6) < 0) __PYX_ERR(0, 136, __pyx_L1_error)
-    __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    __pyx_t_6 = __Pyx_PyObject_Call(__pyx_t_14, __pyx_t_10, __pyx_t_13); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 136, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_6);
-    __Pyx_DECREF(__pyx_t_14); __pyx_t_14 = 0;
-    __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+    PyList_SET_ITEM(__pyx_t_7, 1, __pyx_v_path2);
+    if (PyDict_SetItem(__pyx_t_10, __pyx_n_s_axes, __pyx_t_7) < 0) __PYX_ERR(0, 141, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+    __pyx_t_7 = __Pyx_PyObject_Call(__pyx_t_13, __pyx_t_3, __pyx_t_10); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 141, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
     __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
-    __pyx_r = __pyx_t_6;
-    __pyx_t_6 = 0;
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+    __pyx_r = __pyx_t_7;
+    __pyx_t_7 = 0;
     goto __pyx_L0;
   }
   __pyx_L3:;
 
-  /* "tensorutils.pyx":73
+  /* "tensorutils.pyx":62
  *         return np.transpose(output, axes=outaxes)
  * 
  * def atensorcontract(int nmodes, list modes, *As, spfovs=None, spfovsconj=False):             # <<<<<<<<<<<<<<
@@ -3635,10 +4163,10 @@ static PyObject *__pyx_pf_11tensorutils_2atensorcontract(CYTHON_UNUSED PyObject 
   __pyx_r = Py_None; __Pyx_INCREF(Py_None);
   goto __pyx_L0;
   __pyx_L1_error:;
-  __Pyx_XDECREF(__pyx_t_1);
-  __Pyx_XDECREF(__pyx_t_6);
-  __Pyx_XDECREF(__pyx_t_9);
+  __Pyx_XDECREF(__pyx_t_3);
+  __Pyx_XDECREF(__pyx_t_7);
   __Pyx_XDECREF(__pyx_t_10);
+  __Pyx_XDECREF(__pyx_t_11);
   __Pyx_XDECREF(__pyx_t_13);
   __Pyx_XDECREF(__pyx_t_14);
   __Pyx_AddTraceback("tensorutils.atensorcontract", __pyx_clineno, __pyx_lineno, __pyx_filename);
@@ -3653,10 +4181,10 @@ static PyObject *__pyx_pf_11tensorutils_2atensorcontract(CYTHON_UNUSED PyObject 
   return __pyx_r;
 }
 
-/* "tensorutils.pyx":138
+/* "tensorutils.pyx":143
  *         return np.tensordot(output,As[1],axes=[path1,path2])
  * 
- * def ahtensorcontract(int nmodes,cnp.ndarray A,cnp.ndarray[complex, ndim=2] h,int order,conj=False):             # <<<<<<<<<<<<<<
+ * def ahtensorcontract(int nmodes,cnp.ndarray A,cnp.ndarray[complex, ndim=2, mode='c'] h,int order,conj=False):             # <<<<<<<<<<<<<<
  *     """Function that does the contraction over remaining MCTDH A tensor with
  *     hamiltonian term matrix elements mwhen computing mean field operators.
  */
@@ -3704,19 +4232,19 @@ static PyObject *__pyx_pw_11tensorutils_5ahtensorcontract(PyObject *__pyx_self, 
         case  1:
         if (likely((values[1] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_A)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("ahtensorcontract", 0, 4, 5, 1); __PYX_ERR(0, 138, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("ahtensorcontract", 0, 4, 5, 1); __PYX_ERR(0, 143, __pyx_L3_error)
         }
         CYTHON_FALLTHROUGH;
         case  2:
         if (likely((values[2] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_h)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("ahtensorcontract", 0, 4, 5, 2); __PYX_ERR(0, 138, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("ahtensorcontract", 0, 4, 5, 2); __PYX_ERR(0, 143, __pyx_L3_error)
         }
         CYTHON_FALLTHROUGH;
         case  3:
         if (likely((values[3] = __Pyx_PyDict_GetItemStr(__pyx_kwds, __pyx_n_s_order)) != 0)) kw_args--;
         else {
-          __Pyx_RaiseArgtupleInvalid("ahtensorcontract", 0, 4, 5, 3); __PYX_ERR(0, 138, __pyx_L3_error)
+          __Pyx_RaiseArgtupleInvalid("ahtensorcontract", 0, 4, 5, 3); __PYX_ERR(0, 143, __pyx_L3_error)
         }
         CYTHON_FALLTHROUGH;
         case  4:
@@ -3726,7 +4254,7 @@ static PyObject *__pyx_pw_11tensorutils_5ahtensorcontract(PyObject *__pyx_self, 
         }
       }
       if (unlikely(kw_args > 0)) {
-        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "ahtensorcontract") < 0)) __PYX_ERR(0, 138, __pyx_L3_error)
+        if (unlikely(__Pyx_ParseOptionalKeywords(__pyx_kwds, __pyx_pyargnames, 0, values, pos_args, "ahtensorcontract") < 0)) __PYX_ERR(0, 143, __pyx_L3_error)
       }
     } else {
       switch (PyTuple_GET_SIZE(__pyx_args)) {
@@ -3740,22 +4268,22 @@ static PyObject *__pyx_pw_11tensorutils_5ahtensorcontract(PyObject *__pyx_self, 
         default: goto __pyx_L5_argtuple_error;
       }
     }
-    __pyx_v_nmodes = __Pyx_PyInt_As_int(values[0]); if (unlikely((__pyx_v_nmodes == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 138, __pyx_L3_error)
+    __pyx_v_nmodes = __Pyx_PyInt_As_int(values[0]); if (unlikely((__pyx_v_nmodes == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 143, __pyx_L3_error)
     __pyx_v_A = ((PyArrayObject *)values[1]);
     __pyx_v_h = ((PyArrayObject *)values[2]);
-    __pyx_v_order = __Pyx_PyInt_As_int(values[3]); if (unlikely((__pyx_v_order == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 138, __pyx_L3_error)
+    __pyx_v_order = __Pyx_PyInt_As_int(values[3]); if (unlikely((__pyx_v_order == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 143, __pyx_L3_error)
     __pyx_v_conj = values[4];
   }
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("ahtensorcontract", 0, 4, 5, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 138, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("ahtensorcontract", 0, 4, 5, PyTuple_GET_SIZE(__pyx_args)); __PYX_ERR(0, 143, __pyx_L3_error)
   __pyx_L3_error:;
   __Pyx_AddTraceback("tensorutils.ahtensorcontract", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_A), __pyx_ptype_5numpy_ndarray, 1, "A", 0))) __PYX_ERR(0, 138, __pyx_L1_error)
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_h), __pyx_ptype_5numpy_ndarray, 1, "h", 0))) __PYX_ERR(0, 138, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_A), __pyx_ptype_5numpy_ndarray, 1, "A", 0))) __PYX_ERR(0, 143, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_h), __pyx_ptype_5numpy_ndarray, 1, "h", 0))) __PYX_ERR(0, 143, __pyx_L1_error)
   __pyx_r = __pyx_pf_11tensorutils_4ahtensorcontract(__pyx_self, __pyx_v_nmodes, __pyx_v_A, __pyx_v_h, __pyx_v_order, __pyx_v_conj);
 
   /* function exit code */
@@ -3787,11 +4315,11 @@ static PyObject *__pyx_pf_11tensorutils_4ahtensorcontract(CYTHON_UNUSED PyObject
   __pyx_pybuffernd_h.rcbuffer = &__pyx_pybuffer_h;
   {
     __Pyx_BufFmt_StackElem __pyx_stack[1];
-    if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_h.rcbuffer->pybuffer, (PyObject*)__pyx_v_h, &__Pyx_TypeInfo___pyx_t_double_complex, PyBUF_FORMAT| PyBUF_STRIDES, 2, 0, __pyx_stack) == -1)) __PYX_ERR(0, 138, __pyx_L1_error)
+    if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_h.rcbuffer->pybuffer, (PyObject*)__pyx_v_h, &__Pyx_TypeInfo___pyx_t_double_complex, PyBUF_FORMAT| PyBUF_C_CONTIGUOUS, 2, 0, __pyx_stack) == -1)) __PYX_ERR(0, 143, __pyx_L1_error)
   }
   __pyx_pybuffernd_h.diminfo[0].strides = __pyx_pybuffernd_h.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_h.diminfo[0].shape = __pyx_pybuffernd_h.rcbuffer->pybuffer.shape[0]; __pyx_pybuffernd_h.diminfo[1].strides = __pyx_pybuffernd_h.rcbuffer->pybuffer.strides[1]; __pyx_pybuffernd_h.diminfo[1].shape = __pyx_pybuffernd_h.rcbuffer->pybuffer.shape[1];
 
-  /* "tensorutils.pyx":154
+  /* "tensorutils.pyx":159
  *     should be a tensor with 2 fewer dimensions than what came in
  *     """
  *     cdef int nmodes_ = int(nmodes/2)             # <<<<<<<<<<<<<<
@@ -3800,7 +4328,7 @@ static PyObject *__pyx_pf_11tensorutils_4ahtensorcontract(CYTHON_UNUSED PyObject
  */
   __pyx_v_nmodes_ = ((int)__Pyx_div_long(__pyx_v_nmodes, 2));
 
-  /* "tensorutils.pyx":156
+  /* "tensorutils.pyx":161
  *     cdef int nmodes_ = int(nmodes/2)
  *     cdef list path
  *     if order == 0:             # <<<<<<<<<<<<<<
@@ -3810,26 +4338,26 @@ static PyObject *__pyx_pf_11tensorutils_4ahtensorcontract(CYTHON_UNUSED PyObject
   __pyx_t_1 = ((__pyx_v_order == 0) != 0);
   if (__pyx_t_1) {
 
-    /* "tensorutils.pyx":157
+    /* "tensorutils.pyx":162
  *     cdef list path
  *     if order == 0:
  *         if conj:             # <<<<<<<<<<<<<<
  *             path = [nmodes_,0]
  *         else:
  */
-    __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_v_conj); if (unlikely(__pyx_t_1 < 0)) __PYX_ERR(0, 157, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_v_conj); if (unlikely(__pyx_t_1 < 0)) __PYX_ERR(0, 162, __pyx_L1_error)
     if (__pyx_t_1) {
 
-      /* "tensorutils.pyx":158
+      /* "tensorutils.pyx":163
  *     if order == 0:
  *         if conj:
  *             path = [nmodes_,0]             # <<<<<<<<<<<<<<
  *         else:
  *             path = [0,nmodes_]
  */
-      __pyx_t_2 = __Pyx_PyInt_From_int(__pyx_v_nmodes_); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 158, __pyx_L1_error)
+      __pyx_t_2 = __Pyx_PyInt_From_int(__pyx_v_nmodes_); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 163, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
-      __pyx_t_3 = PyList_New(2); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 158, __pyx_L1_error)
+      __pyx_t_3 = PyList_New(2); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 163, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
       __Pyx_GIVEREF(__pyx_t_2);
       PyList_SET_ITEM(__pyx_t_3, 0, __pyx_t_2);
@@ -3840,7 +4368,7 @@ static PyObject *__pyx_pf_11tensorutils_4ahtensorcontract(CYTHON_UNUSED PyObject
       __pyx_v_path = ((PyObject*)__pyx_t_3);
       __pyx_t_3 = 0;
 
-      /* "tensorutils.pyx":157
+      /* "tensorutils.pyx":162
  *     cdef list path
  *     if order == 0:
  *         if conj:             # <<<<<<<<<<<<<<
@@ -3850,7 +4378,7 @@ static PyObject *__pyx_pf_11tensorutils_4ahtensorcontract(CYTHON_UNUSED PyObject
       goto __pyx_L4;
     }
 
-    /* "tensorutils.pyx":160
+    /* "tensorutils.pyx":165
  *             path = [nmodes_,0]
  *         else:
  *             path = [0,nmodes_]             # <<<<<<<<<<<<<<
@@ -3858,9 +4386,9 @@ static PyObject *__pyx_pf_11tensorutils_4ahtensorcontract(CYTHON_UNUSED PyObject
  *         if conj:
  */
     /*else*/ {
-      __pyx_t_3 = __Pyx_PyInt_From_int(__pyx_v_nmodes_); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 160, __pyx_L1_error)
+      __pyx_t_3 = __Pyx_PyInt_From_int(__pyx_v_nmodes_); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 165, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
-      __pyx_t_2 = PyList_New(2); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 160, __pyx_L1_error)
+      __pyx_t_2 = PyList_New(2); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 165, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
       __Pyx_INCREF(__pyx_int_0);
       __Pyx_GIVEREF(__pyx_int_0);
@@ -3873,7 +4401,7 @@ static PyObject *__pyx_pf_11tensorutils_4ahtensorcontract(CYTHON_UNUSED PyObject
     }
     __pyx_L4:;
 
-    /* "tensorutils.pyx":156
+    /* "tensorutils.pyx":161
  *     cdef int nmodes_ = int(nmodes/2)
  *     cdef list path
  *     if order == 0:             # <<<<<<<<<<<<<<
@@ -3883,7 +4411,7 @@ static PyObject *__pyx_pf_11tensorutils_4ahtensorcontract(CYTHON_UNUSED PyObject
     goto __pyx_L3;
   }
 
-  /* "tensorutils.pyx":162
+  /* "tensorutils.pyx":167
  *             path = [0,nmodes_]
  *     else:
  *         if conj:             # <<<<<<<<<<<<<<
@@ -3891,19 +4419,19 @@ static PyObject *__pyx_pf_11tensorutils_4ahtensorcontract(CYTHON_UNUSED PyObject
  *         else:
  */
   /*else*/ {
-    __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_v_conj); if (unlikely(__pyx_t_1 < 0)) __PYX_ERR(0, 162, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_v_conj); if (unlikely(__pyx_t_1 < 0)) __PYX_ERR(0, 167, __pyx_L1_error)
     if (__pyx_t_1) {
 
-      /* "tensorutils.pyx":163
+      /* "tensorutils.pyx":168
  *     else:
  *         if conj:
  *             path = [nmodes_+1,1]             # <<<<<<<<<<<<<<
  *         else:
  *             path = [1,nmodes_+1]
  */
-      __pyx_t_2 = __Pyx_PyInt_From_long((__pyx_v_nmodes_ + 1)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 163, __pyx_L1_error)
+      __pyx_t_2 = __Pyx_PyInt_From_long((__pyx_v_nmodes_ + 1)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 168, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
-      __pyx_t_3 = PyList_New(2); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 163, __pyx_L1_error)
+      __pyx_t_3 = PyList_New(2); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 168, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
       __Pyx_GIVEREF(__pyx_t_2);
       PyList_SET_ITEM(__pyx_t_3, 0, __pyx_t_2);
@@ -3914,7 +4442,7 @@ static PyObject *__pyx_pf_11tensorutils_4ahtensorcontract(CYTHON_UNUSED PyObject
       __pyx_v_path = ((PyObject*)__pyx_t_3);
       __pyx_t_3 = 0;
 
-      /* "tensorutils.pyx":162
+      /* "tensorutils.pyx":167
  *             path = [0,nmodes_]
  *     else:
  *         if conj:             # <<<<<<<<<<<<<<
@@ -3924,16 +4452,16 @@ static PyObject *__pyx_pf_11tensorutils_4ahtensorcontract(CYTHON_UNUSED PyObject
       goto __pyx_L5;
     }
 
-    /* "tensorutils.pyx":165
+    /* "tensorutils.pyx":170
  *             path = [nmodes_+1,1]
  *         else:
  *             path = [1,nmodes_+1]             # <<<<<<<<<<<<<<
  *     return np.tensordot(A,h,axes=[path,[0,1]])
  */
     /*else*/ {
-      __pyx_t_3 = __Pyx_PyInt_From_long((__pyx_v_nmodes_ + 1)); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 165, __pyx_L1_error)
+      __pyx_t_3 = __Pyx_PyInt_From_long((__pyx_v_nmodes_ + 1)); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 170, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
-      __pyx_t_2 = PyList_New(2); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 165, __pyx_L1_error)
+      __pyx_t_2 = PyList_New(2); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 170, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
       __Pyx_INCREF(__pyx_int_1);
       __Pyx_GIVEREF(__pyx_int_1);
@@ -3948,18 +4476,18 @@ static PyObject *__pyx_pf_11tensorutils_4ahtensorcontract(CYTHON_UNUSED PyObject
   }
   __pyx_L3:;
 
-  /* "tensorutils.pyx":166
+  /* "tensorutils.pyx":171
  *         else:
  *             path = [1,nmodes_+1]
  *     return np.tensordot(A,h,axes=[path,[0,1]])             # <<<<<<<<<<<<<<
  */
   __Pyx_XDECREF(__pyx_r);
-  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_np); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 166, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_n_s_np); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 171, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 166, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_2, __pyx_n_s_tensordot); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 171, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_2 = PyTuple_New(2); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 166, __pyx_L1_error)
+  __pyx_t_2 = PyTuple_New(2); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 171, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_INCREF(((PyObject *)__pyx_v_A));
   __Pyx_GIVEREF(((PyObject *)__pyx_v_A));
@@ -3967,9 +4495,9 @@ static PyObject *__pyx_pf_11tensorutils_4ahtensorcontract(CYTHON_UNUSED PyObject
   __Pyx_INCREF(((PyObject *)__pyx_v_h));
   __Pyx_GIVEREF(((PyObject *)__pyx_v_h));
   PyTuple_SET_ITEM(__pyx_t_2, 1, ((PyObject *)__pyx_v_h));
-  __pyx_t_4 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 166, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 171, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_5 = PyList_New(2); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 166, __pyx_L1_error)
+  __pyx_t_5 = PyList_New(2); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 171, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __Pyx_INCREF(__pyx_int_0);
   __Pyx_GIVEREF(__pyx_int_0);
@@ -3977,7 +4505,7 @@ static PyObject *__pyx_pf_11tensorutils_4ahtensorcontract(CYTHON_UNUSED PyObject
   __Pyx_INCREF(__pyx_int_1);
   __Pyx_GIVEREF(__pyx_int_1);
   PyList_SET_ITEM(__pyx_t_5, 1, __pyx_int_1);
-  __pyx_t_6 = PyList_New(2); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 166, __pyx_L1_error)
+  __pyx_t_6 = PyList_New(2); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 171, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   __Pyx_INCREF(__pyx_v_path);
   __Pyx_GIVEREF(__pyx_v_path);
@@ -3985,9 +4513,9 @@ static PyObject *__pyx_pf_11tensorutils_4ahtensorcontract(CYTHON_UNUSED PyObject
   __Pyx_GIVEREF(__pyx_t_5);
   PyList_SET_ITEM(__pyx_t_6, 1, __pyx_t_5);
   __pyx_t_5 = 0;
-  if (PyDict_SetItem(__pyx_t_4, __pyx_n_s_axes, __pyx_t_6) < 0) __PYX_ERR(0, 166, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_4, __pyx_n_s_axes, __pyx_t_6) < 0) __PYX_ERR(0, 171, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __pyx_t_6 = __Pyx_PyObject_Call(__pyx_t_3, __pyx_t_2, __pyx_t_4); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 166, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyObject_Call(__pyx_t_3, __pyx_t_2, __pyx_t_4); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 171, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
@@ -3996,10 +4524,10 @@ static PyObject *__pyx_pf_11tensorutils_4ahtensorcontract(CYTHON_UNUSED PyObject
   __pyx_t_6 = 0;
   goto __pyx_L0;
 
-  /* "tensorutils.pyx":138
+  /* "tensorutils.pyx":143
  *         return np.tensordot(output,As[1],axes=[path1,path2])
  * 
- * def ahtensorcontract(int nmodes,cnp.ndarray A,cnp.ndarray[complex, ndim=2] h,int order,conj=False):             # <<<<<<<<<<<<<<
+ * def ahtensorcontract(int nmodes,cnp.ndarray A,cnp.ndarray[complex, ndim=2, mode='c'] h,int order,conj=False):             # <<<<<<<<<<<<<<
  *     """Function that does the contraction over remaining MCTDH A tensor with
  *     hamiltonian term matrix elements mwhen computing mean field operators.
  */
@@ -6525,7 +7053,6 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {&__pyx_kp_s_numpy_core_umath_failed_to_impor, __pyx_k_numpy_core_umath_failed_to_impor, sizeof(__pyx_k_numpy_core_umath_failed_to_impor), 0, 0, 1, 0},
   {&__pyx_n_s_opcount, __pyx_k_opcount, sizeof(__pyx_k_opcount), 0, 0, 1, 1},
   {&__pyx_n_s_opips, __pyx_k_opips, sizeof(__pyx_k_opips), 0, 0, 1, 1},
-  {&__pyx_n_s_ops, __pyx_k_ops, sizeof(__pyx_k_ops), 0, 0, 1, 1},
   {&__pyx_n_s_order, __pyx_k_order, sizeof(__pyx_k_order), 0, 0, 1, 1},
   {&__pyx_n_s_outaxes, __pyx_k_outaxes, sizeof(__pyx_k_outaxes), 0, 0, 1, 1},
   {&__pyx_n_s_outorder, __pyx_k_outorder, sizeof(__pyx_k_outorder), 0, 0, 1, 1},
@@ -6548,7 +7075,7 @@ static __Pyx_StringTabEntry __pyx_string_tab[] = {
   {0, 0, 0, 0, 0, 0, 0}
 };
 static CYTHON_SMALL_CODE int __Pyx_InitCachedBuiltins(void) {
-  __pyx_builtin_range = __Pyx_GetBuiltinName(__pyx_n_s_range); if (!__pyx_builtin_range) __PYX_ERR(0, 38, __pyx_L1_error)
+  __pyx_builtin_range = __Pyx_GetBuiltinName(__pyx_n_s_range); if (!__pyx_builtin_range) __PYX_ERR(0, 20, __pyx_L1_error)
   __pyx_builtin_ValueError = __Pyx_GetBuiltinName(__pyx_n_s_ValueError); if (!__pyx_builtin_ValueError) __PYX_ERR(1, 272, __pyx_L1_error)
   __pyx_builtin_RuntimeError = __Pyx_GetBuiltinName(__pyx_n_s_RuntimeError); if (!__pyx_builtin_RuntimeError) __PYX_ERR(1, 856, __pyx_L1_error)
   __pyx_builtin_ImportError = __Pyx_GetBuiltinName(__pyx_n_s_ImportError); if (!__pyx_builtin_ImportError) __PYX_ERR(1, 1038, __pyx_L1_error)
@@ -6638,41 +7165,41 @@ static CYTHON_SMALL_CODE int __Pyx_InitCachedConstants(void) {
   __Pyx_GOTREF(__pyx_tuple__7);
   __Pyx_GIVEREF(__pyx_tuple__7);
 
-  /* "tensorutils.pyx":4
- * cimport numpy as cnp
+  /* "tensorutils.pyx":5
  * 
- * def matelcontract(int nmodes,list modes,ops,opips,cnp.ndarray A, spfovs=None,conj=False):             # <<<<<<<<<<<<<<
- *     """Computes the contractions required for mctdh coefficient eom.
- * 
+ * #
+ * def matelcontract(int nmodes,list modes,opips,cnp.ndarray A,spfovs=None,conj=False):             # <<<<<<<<<<<<<<
+ *     cdef int i
+ *     cdef cnp.ndarray output
  */
-  __pyx_tuple__8 = PyTuple_Pack(15, __pyx_n_s_nmodes, __pyx_n_s_modes, __pyx_n_s_ops, __pyx_n_s_opips, __pyx_n_s_A, __pyx_n_s_spfovs, __pyx_n_s_conj, __pyx_n_s_i, __pyx_n_s_output, __pyx_n_s_count, __pyx_n_s_opcount, __pyx_n_s_skipped, __pyx_n_s_unskipped, __pyx_n_s_outorder, __pyx_n_s_outaxes); if (unlikely(!__pyx_tuple__8)) __PYX_ERR(0, 4, __pyx_L1_error)
+  __pyx_tuple__8 = PyTuple_Pack(14, __pyx_n_s_nmodes, __pyx_n_s_modes, __pyx_n_s_opips, __pyx_n_s_A, __pyx_n_s_spfovs, __pyx_n_s_conj, __pyx_n_s_i, __pyx_n_s_output, __pyx_n_s_count, __pyx_n_s_opcount, __pyx_n_s_skipped, __pyx_n_s_unskipped, __pyx_n_s_outorder, __pyx_n_s_outaxes); if (unlikely(!__pyx_tuple__8)) __PYX_ERR(0, 5, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__8);
   __Pyx_GIVEREF(__pyx_tuple__8);
-  __pyx_codeobj__9 = (PyObject*)__Pyx_PyCode_New(7, 0, 15, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__8, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_tensorutils_pyx, __pyx_n_s_matelcontract, 4, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__9)) __PYX_ERR(0, 4, __pyx_L1_error)
+  __pyx_codeobj__9 = (PyObject*)__Pyx_PyCode_New(6, 0, 14, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__8, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_tensorutils_pyx, __pyx_n_s_matelcontract, 5, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__9)) __PYX_ERR(0, 5, __pyx_L1_error)
 
-  /* "tensorutils.pyx":73
+  /* "tensorutils.pyx":62
  *         return np.transpose(output, axes=outaxes)
  * 
  * def atensorcontract(int nmodes, list modes, *As, spfovs=None, spfovsconj=False):             # <<<<<<<<<<<<<<
  *     """Function that does the contraction over MCTDH A tensor when computing
  *     mean field operators.
  */
-  __pyx_tuple__10 = PyTuple_Pack(11, __pyx_n_s_nmodes, __pyx_n_s_modes, __pyx_n_s_spfovs, __pyx_n_s_spfovsconj, __pyx_n_s_As, __pyx_n_s_i, __pyx_n_s_path, __pyx_n_s_output, __pyx_n_s_count, __pyx_n_s_path1, __pyx_n_s_path2); if (unlikely(!__pyx_tuple__10)) __PYX_ERR(0, 73, __pyx_L1_error)
+  __pyx_tuple__10 = PyTuple_Pack(11, __pyx_n_s_nmodes, __pyx_n_s_modes, __pyx_n_s_spfovs, __pyx_n_s_spfovsconj, __pyx_n_s_As, __pyx_n_s_i, __pyx_n_s_path, __pyx_n_s_output, __pyx_n_s_count, __pyx_n_s_path1, __pyx_n_s_path2); if (unlikely(!__pyx_tuple__10)) __PYX_ERR(0, 62, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__10);
   __Pyx_GIVEREF(__pyx_tuple__10);
-  __pyx_codeobj__11 = (PyObject*)__Pyx_PyCode_New(2, 2, 11, 0, CO_OPTIMIZED|CO_NEWLOCALS|CO_VARARGS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__10, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_tensorutils_pyx, __pyx_n_s_atensorcontract, 73, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__11)) __PYX_ERR(0, 73, __pyx_L1_error)
+  __pyx_codeobj__11 = (PyObject*)__Pyx_PyCode_New(2, 2, 11, 0, CO_OPTIMIZED|CO_NEWLOCALS|CO_VARARGS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__10, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_tensorutils_pyx, __pyx_n_s_atensorcontract, 62, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__11)) __PYX_ERR(0, 62, __pyx_L1_error)
 
-  /* "tensorutils.pyx":138
+  /* "tensorutils.pyx":143
  *         return np.tensordot(output,As[1],axes=[path1,path2])
  * 
- * def ahtensorcontract(int nmodes,cnp.ndarray A,cnp.ndarray[complex, ndim=2] h,int order,conj=False):             # <<<<<<<<<<<<<<
+ * def ahtensorcontract(int nmodes,cnp.ndarray A,cnp.ndarray[complex, ndim=2, mode='c'] h,int order,conj=False):             # <<<<<<<<<<<<<<
  *     """Function that does the contraction over remaining MCTDH A tensor with
  *     hamiltonian term matrix elements mwhen computing mean field operators.
  */
-  __pyx_tuple__12 = PyTuple_Pack(7, __pyx_n_s_nmodes, __pyx_n_s_A, __pyx_n_s_h, __pyx_n_s_order, __pyx_n_s_conj, __pyx_n_s_nmodes_2, __pyx_n_s_path); if (unlikely(!__pyx_tuple__12)) __PYX_ERR(0, 138, __pyx_L1_error)
+  __pyx_tuple__12 = PyTuple_Pack(7, __pyx_n_s_nmodes, __pyx_n_s_A, __pyx_n_s_h, __pyx_n_s_order, __pyx_n_s_conj, __pyx_n_s_nmodes_2, __pyx_n_s_path); if (unlikely(!__pyx_tuple__12)) __PYX_ERR(0, 143, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__12);
   __Pyx_GIVEREF(__pyx_tuple__12);
-  __pyx_codeobj__13 = (PyObject*)__Pyx_PyCode_New(5, 0, 7, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__12, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_tensorutils_pyx, __pyx_n_s_ahtensorcontract, 138, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__13)) __PYX_ERR(0, 138, __pyx_L1_error)
+  __pyx_codeobj__13 = (PyObject*)__Pyx_PyCode_New(5, 0, 7, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__12, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_tensorutils_pyx, __pyx_n_s_ahtensorcontract, 143, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__13)) __PYX_ERR(0, 143, __pyx_L1_error)
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;
@@ -6991,40 +7518,40 @@ if (!__Pyx_RefNanny) {
   if (PyDict_SetItem(__pyx_d, __pyx_n_s_np, __pyx_t_1) < 0) __PYX_ERR(0, 1, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "tensorutils.pyx":4
- * cimport numpy as cnp
+  /* "tensorutils.pyx":5
  * 
- * def matelcontract(int nmodes,list modes,ops,opips,cnp.ndarray A, spfovs=None,conj=False):             # <<<<<<<<<<<<<<
- *     """Computes the contractions required for mctdh coefficient eom.
- * 
+ * #
+ * def matelcontract(int nmodes,list modes,opips,cnp.ndarray A,spfovs=None,conj=False):             # <<<<<<<<<<<<<<
+ *     cdef int i
+ *     cdef cnp.ndarray output
  */
-  __pyx_t_1 = PyCFunction_NewEx(&__pyx_mdef_11tensorutils_1matelcontract, NULL, __pyx_n_s_tensorutils); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 4, __pyx_L1_error)
+  __pyx_t_1 = PyCFunction_NewEx(&__pyx_mdef_11tensorutils_1matelcontract, NULL, __pyx_n_s_tensorutils); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 5, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_matelcontract, __pyx_t_1) < 0) __PYX_ERR(0, 4, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_matelcontract, __pyx_t_1) < 0) __PYX_ERR(0, 5, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "tensorutils.pyx":73
+  /* "tensorutils.pyx":62
  *         return np.transpose(output, axes=outaxes)
  * 
  * def atensorcontract(int nmodes, list modes, *As, spfovs=None, spfovsconj=False):             # <<<<<<<<<<<<<<
  *     """Function that does the contraction over MCTDH A tensor when computing
  *     mean field operators.
  */
-  __pyx_t_1 = PyCFunction_NewEx(&__pyx_mdef_11tensorutils_3atensorcontract, NULL, __pyx_n_s_tensorutils); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 73, __pyx_L1_error)
+  __pyx_t_1 = PyCFunction_NewEx(&__pyx_mdef_11tensorutils_3atensorcontract, NULL, __pyx_n_s_tensorutils); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 62, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_atensorcontract, __pyx_t_1) < 0) __PYX_ERR(0, 73, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_atensorcontract, __pyx_t_1) < 0) __PYX_ERR(0, 62, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "tensorutils.pyx":138
+  /* "tensorutils.pyx":143
  *         return np.tensordot(output,As[1],axes=[path1,path2])
  * 
- * def ahtensorcontract(int nmodes,cnp.ndarray A,cnp.ndarray[complex, ndim=2] h,int order,conj=False):             # <<<<<<<<<<<<<<
+ * def ahtensorcontract(int nmodes,cnp.ndarray A,cnp.ndarray[complex, ndim=2, mode='c'] h,int order,conj=False):             # <<<<<<<<<<<<<<
  *     """Function that does the contraction over remaining MCTDH A tensor with
  *     hamiltonian term matrix elements mwhen computing mean field operators.
  */
-  __pyx_t_1 = PyCFunction_NewEx(&__pyx_mdef_11tensorutils_5ahtensorcontract, NULL, __pyx_n_s_tensorutils); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 138, __pyx_L1_error)
+  __pyx_t_1 = PyCFunction_NewEx(&__pyx_mdef_11tensorutils_5ahtensorcontract, NULL, __pyx_n_s_tensorutils); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 143, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_ahtensorcontract, __pyx_t_1) < 0) __PYX_ERR(0, 138, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_ahtensorcontract, __pyx_t_1) < 0) __PYX_ERR(0, 143, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
   /* "tensorutils.pyx":1
@@ -7683,32 +8210,62 @@ static CYTHON_INLINE int __Pyx_TypeTest(PyObject *obj, PyTypeObject *type) {
     return 0;
 }
 
-/* ObjectGetItem */
-#if CYTHON_USE_TYPE_SLOTS
-static PyObject *__Pyx_PyObject_GetIndex(PyObject *obj, PyObject* index) {
-    PyObject *runerr;
-    Py_ssize_t key_value;
-    PySequenceMethods *m = Py_TYPE(obj)->tp_as_sequence;
-    if (unlikely(!(m && m->sq_item))) {
-        PyErr_Format(PyExc_TypeError, "'%.200s' object is not subscriptable", Py_TYPE(obj)->tp_name);
-        return NULL;
+/* SliceTupleAndList */
+#if CYTHON_COMPILING_IN_CPYTHON
+static CYTHON_INLINE void __Pyx_crop_slice(Py_ssize_t* _start, Py_ssize_t* _stop, Py_ssize_t* _length) {
+    Py_ssize_t start = *_start, stop = *_stop, length = *_length;
+    if (start < 0) {
+        start += length;
+        if (start < 0)
+            start = 0;
     }
-    key_value = __Pyx_PyIndex_AsSsize_t(index);
-    if (likely(key_value != -1 || !(runerr = PyErr_Occurred()))) {
-        return __Pyx_GetItemInt_Fast(obj, key_value, 0, 1, 1);
-    }
-    if (PyErr_GivenExceptionMatches(runerr, PyExc_OverflowError)) {
-        PyErr_Clear();
-        PyErr_Format(PyExc_IndexError, "cannot fit '%.200s' into an index-sized integer", Py_TYPE(index)->tp_name);
-    }
-    return NULL;
+    if (stop < 0)
+        stop += length;
+    else if (stop > length)
+        stop = length;
+    *_length = stop - start;
+    *_start = start;
+    *_stop = stop;
 }
-static PyObject *__Pyx_PyObject_GetItem(PyObject *obj, PyObject* key) {
-    PyMappingMethods *m = Py_TYPE(obj)->tp_as_mapping;
-    if (likely(m && m->mp_subscript)) {
-        return m->mp_subscript(obj, key);
+static CYTHON_INLINE void __Pyx_copy_object_array(PyObject** CYTHON_RESTRICT src, PyObject** CYTHON_RESTRICT dest, Py_ssize_t length) {
+    PyObject *v;
+    Py_ssize_t i;
+    for (i = 0; i < length; i++) {
+        v = dest[i] = src[i];
+        Py_INCREF(v);
     }
-    return __Pyx_PyObject_GetIndex(obj, key);
+}
+static CYTHON_INLINE PyObject* __Pyx_PyList_GetSlice(
+            PyObject* src, Py_ssize_t start, Py_ssize_t stop) {
+    PyObject* dest;
+    Py_ssize_t length = PyList_GET_SIZE(src);
+    __Pyx_crop_slice(&start, &stop, &length);
+    if (unlikely(length <= 0))
+        return PyList_New(0);
+    dest = PyList_New(length);
+    if (unlikely(!dest))
+        return NULL;
+    __Pyx_copy_object_array(
+        ((PyListObject*)src)->ob_item + start,
+        ((PyListObject*)dest)->ob_item,
+        length);
+    return dest;
+}
+static CYTHON_INLINE PyObject* __Pyx_PyTuple_GetSlice(
+            PyObject* src, Py_ssize_t start, Py_ssize_t stop) {
+    PyObject* dest;
+    Py_ssize_t length = PyTuple_GET_SIZE(src);
+    __Pyx_crop_slice(&start, &stop, &length);
+    if (unlikely(length <= 0))
+        return PyTuple_New(0);
+    dest = PyTuple_New(length);
+    if (unlikely(!dest))
+        return NULL;
+    __Pyx_copy_object_array(
+        ((PyTupleObject*)src)->ob_item + start,
+        ((PyTupleObject*)dest)->ob_item,
+        length);
+    return dest;
 }
 #endif
 

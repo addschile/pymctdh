@@ -91,6 +91,7 @@ class PBasis:
     def operate(self, spf, term):
         """Operate a single-body term on a single spf.
         """
+        #return self.ops[term]@spf
         if self.sparse:
             return matvec(self.ops[term], spf)
         else:

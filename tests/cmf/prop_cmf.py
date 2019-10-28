@@ -1,11 +1,10 @@
 import numpy as np
 import sys
-sys.path.append('/Users/addisonschile/Software/new_pymctdh')
+sys.path.append('/Users/addisonschile/Software/pymctdh')
 import units
 from wavefunction import Wavefunction
 from hamiltonian import Hamiltonian
 from pbasis import PBasis
-from cmfpropagate import cmfpropagate#,cmffixpropagate
 from cmffixpropagate import cmffixpropagate
 
 if __name__ == "__main__":
@@ -58,10 +57,11 @@ if __name__ == "__main__":
 
     ham = Hamiltonian(nmodes, hterms, pbfs=pbfs)
 
-    dt = 0.5
+    dt = 0.1
     times = np.arange(0.0,120.,dt)*units.convert_to('fs')
 
     #wf.A = np.load('wavefunction_A.npy',allow_pickle=True)
     #wf.spfs = np.load('wavefunction_spfs.npy',allow_pickle=True)
     wf = cmffixpropagate(times, ham, pbfs, wf, 'pyr4_profile.txt')
+    #wf = cmffixpropagate(times, ham, pbfs, wf, 'pyr4_profile_ada.txt')
 

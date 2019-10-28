@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.sparse as sp
 from cy.sparsemat import make_csr
 
 # NOTE: this currently doesn't get used anywehre
@@ -85,6 +86,7 @@ def make_ho_ops(params,op,sparse=False):
         print(op)
         raise ValueError("Not a valid operator for HO basis")
     if sparse:
+        #opout = sp.csr_matrix(opout)
         opout = make_csr(int(npbf),opout)
     return opout
 
@@ -114,6 +116,7 @@ def make_ho_ops_combined(params,op,sparse=False):
     else:
         raise ValueError("Incorrectly specified operator for combined mode")
     if sparse:
+        #opout = sp.csr_matrix(opout)
         npbf_ = 1
         for n in npbf:
             npbf_ *= n
@@ -179,6 +182,7 @@ def make_planewave_ops(params,op,sparse=True):
             opout[i,i+1] = 0.5
             opout[i+1,i] = 0.5
     if sparse:
+        #opout = sp.csr_matrix(opout)
         opout = make_csr(int(npbf),opout)
     return opout
 
