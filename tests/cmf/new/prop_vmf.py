@@ -6,6 +6,7 @@ from wavefunction import Wavefunction
 from hamiltonian import Hamiltonian
 from pbasis import PBasis
 from vmfpropagate import vmfpropagate
+from cy.wftools import norm
 
 if __name__ == "__main__":
 
@@ -16,14 +17,10 @@ if __name__ == "__main__":
     npbfs = np.array([22, 32, 21, 12], dtype=int)
 
     pbfs = list()
-    pbfs.append( PBasis(['ho', 22, 1.0, 1.0]) )
-    pbfs.append( PBasis(['ho', 32, 1.0, 1.0]) )
-    pbfs.append( PBasis(['ho', 21, 1.0, 1.0]) )
-    pbfs.append( PBasis(['ho', 12, 1.0, 1.0]) )
-    #pbfs.append( PBasis(['ho', 22, 1.0, 1.0],sparse=True) )
-    #pbfs.append( PBasis(['ho', 32, 1.0, 1.0],sparse=True) )
-    #pbfs.append( PBasis(['ho', 21, 1.0, 1.0],sparse=True) )
-    #pbfs.append( PBasis(['ho', 12, 1.0, 1.0],sparse=True) )
+    pbfs.append( PBasis(['ho', 22, 1.0, 1.0],sparse=True) )
+    pbfs.append( PBasis(['ho', 32, 1.0, 1.0],sparse=True) )
+    pbfs.append( PBasis(['ho', 21, 1.0, 1.0],sparse=True) )
+    pbfs.append( PBasis(['ho', 12, 1.0, 1.0],sparse=True) )
 
     wf = Wavefunction(nel, nmodes, nspfs, npbfs)
     wf.generate_ic(1)
@@ -51,6 +48,7 @@ if __name__ == "__main__":
     hterms.append({'coeff':   0.5*w1, 'units': 'ev', 'modes': 2, 'ops': 'q^2'})
     hterms.append({'coeff':  1.0*w9a, 'units': 'ev', 'modes': 3, 'ops':  'KE'}) # mode 4 terms
     hterms.append({'coeff':  0.5*w9a, 'units': 'ev', 'modes': 3, 'ops': 'q^2'})
+    #hterms.append({'coeff':    lamda, 'units': 'ev', 'elop':  'sx'}) # Peierls copuling
     hterms.append({'coeff':    lamda, 'units': 'ev', 'modes': 0, 'elop':  'sx', 'ops': 'q'}) # Peierls copuling
     hterms.append({'coeff':     k6a1, 'units': 'ev', 'modes': 1, 'elop': '0,0', 'ops': 'q'}) # Holstein copuling mode 2 el 0
     hterms.append({'coeff':     k6a2, 'units': 'ev', 'modes': 1, 'elop': '1,1', 'ops': 'q'}) # Holstein copuling mode 2 el 1
@@ -61,13 +59,18 @@ if __name__ == "__main__":
 
     ham = Hamiltonian(nmodes, hterms, pbfs=pbfs)
 
-    dt = 0.1
-    #times = np.arange(0.0,120.,dt)*units.convert_to('fs')
-    times = np.arange(0.0,60.,dt)*units.convert_to('fs')
-
-    wf.A = np.load('wavefunction_A.npy',allow_pickle=True)
-    wf.spfs = np.load('wavefunction_spfs.npy',allow_pickle=True)
-    wf = vmfpropagate(times, ham, pbfs, wf, 'pyr4_profile_eig.txt')
-    #np.save('wavefunction_A',wf.A)
-    #np.save('wavefunction_spfs',wf.spfs)
-
+    dt = 0.5
+    #times = np.arange(0.0,60.,dt)*units.convert_to('fs')
+    times = np.arange(0.0,120.,dt)*units.convert_to('fs')
+    wf = vmfpropagate(times, ham, pbfs, wf, 'test.txt')
+    #np.save('wf.npy',wf.psi)
+    #wf.psi = np.load('wf.npy')
+    #A0 = np.load('A0.npy')
+    #A1 = np.load('A1.npy')
+    #wf.psi[:wf.psiend[0,0]] = A0
+    #wf.psi[wf.psiend[0,0]:wf.psiend[0,1]] = A1
+    ##dt = 0.25
+    #times = np.arange(60.,120.,dt)*units.convert_to('fs')
+    #wf = vmfpropagate(times, ham, pbfs, wf, 'test.txt')
+    ##times = np.arange(0.0,120.,dt)*units.convert_to('fs')
+    ##wf = vmfpropagate(times, ham, pbfs, wf, 'pyr4_profile.txt')

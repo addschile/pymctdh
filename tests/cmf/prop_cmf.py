@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
     ham = Hamiltonian(nmodes, hterms, pbfs=pbfs)
 
-    dt = 0.1
+    dt = 0.5
     times = np.arange(0.0,120.,dt)*units.convert_to('fs')
 
     #wf.A = np.load('wavefunction_A.npy',allow_pickle=True)
