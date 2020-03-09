@@ -3,6 +3,7 @@ import pymctdh.linalg as LA
 
 from pymctdh.pbasis import PBasis
 from pymctdh.hamiltonian import Hamiltonian
+from pymctdh.cy.wftools import dvrtransform
 
 from copy import deepcopy
 
@@ -282,3 +283,10 @@ class Wavefunction(object):
                     spfs = self.reshape_spfs(npbf,nspf,self.psi[ind+ind0:ind+indf])
                     spfs = LA.orthonormalize(nspf, spfs, method=method)
                     self.psi[ind+ind0:ind+indf] = self.reshape_spfs(npbf,nspf,spfs)
+
+    def transform_to_dvr(self, pbfs):
+        """Wrapper function to function that transforms spfs to dvr basis.
+        """
+        self.psi = dvrtransform(self.nel,self.nmodes,self.npsi,self.nspfs,
+                                self.npbfs,self.psistart,self.psiend,
+                                self.spfstart,self.spfend,pbfs,self.psi)
