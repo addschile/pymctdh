@@ -47,7 +47,7 @@ def vmfpropagate(times, ham, pbfs, wf, results=None, return_wf=False):
             sys.stdout.flush()
 
         # analyze wavefunction
-        results.analyze_state(i, times[i], r.y, wf.info)
+        results.analyze_state(i, times[i], r.y, wf.info, pbfs)
 
         # integrate one timestep forward
         r.integrate(r.t + dt)
@@ -74,11 +74,9 @@ def vmfpropagatejumps(times, ham, pbfs, Ls, LdLs, wf, ntraj=100, results=None, s
 
     # set up random number generator
     if seed==None:
-        seeder = int(time())
-        rng = np.random.RandomState(seed=seeder)
+        rng = np.random.RandomState(seed=int(time()))
     else:
-        seeder = seed
-        rng = np.random.RandomState(seed=seeder)
+        rng = np.random.RandomState(seed=seed)
 
     # set up integrator and options
     dt = times[1]-times[0]
@@ -141,7 +139,7 @@ def vmfpropjumpstraj(times, ham, pbfs, Ls, LdLs, wf, r, rng, results=None,
     for i in range(len(times)-1):
 
         # analyze wavefunction
-        results.analyze_state(i, times[i], psi_track, wf.info)
+        results.analyze_state(i, times[i], psi_track, wf.info, pbfs)
 
         tau = times[i]
         while tau != times[i+1]:
