@@ -110,18 +110,21 @@ def compute_uopspfs(nel,nmodes,nspfs,npbfs,spfstart,spfend,huterms,pbfs,spfs):
     #                else:
     #                    # multiply coefficient to spfs
     #                    opspfs += coeff*mel*spfs[alpha]
-    uopspfs = np.zeros(nel, dtype=np.ndarray)
-    for alpha in range(nel):
-        uopspfs[alpha] = np.zeros_like(spfs[alpha], dtype=complex)
-        opspfs = uopspfs[alpha]
-        for mode in range(nmodes):
-            nspf = nspfs[alpha,mode]
-            npbf = npbfs[mode]
-            ind  = spfstart[alpha,mode]
-            for n in range(nspf):
-                spf = spfs[alpha][ind:ind+npbf]
-                opspfs[ind:ind+npbf] += pbfs[mode].operate1b(spf, alpha)
-                ind += npbf
+    if huterms is None:
+        uopspfs = None
+    else:
+        uopspfs = np.zeros(nel, dtype=np.ndarray)
+        for alpha in range(nel):
+            uopspfs[alpha] = np.zeros_like(spfs[alpha], dtype=complex)
+            opspfs = uopspfs[alpha]
+            for mode in range(nmodes):
+                nspf = nspfs[alpha,mode]
+                npbf = npbfs[mode]
+                ind  = spfstart[alpha,mode]
+                for n in range(nspf):
+                    spf = spfs[alpha][ind:ind+npbf]
+                    opspfs[ind:ind+npbf] += pbfs[mode].operate1b(spf, alpha)
+                    ind += npbf
     return uopspfs
 
 def compute_copspfs(nel,nmodes,nspfs,npbfs,spfstart,spfend,hcterms,pbfs,spfs):
