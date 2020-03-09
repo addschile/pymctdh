@@ -1,7 +1,7 @@
 import numpy as np
 from copy import deepcopy
 from pymctdh.qoperator import QOperator
-from pymctdh.expect import compute_expect,diabatic_pops
+from pymctdh.expect import compute_expect,diabatic_pops,diabatic_grid_pops
 from pymctdh.log import print_basic
 
 class Results(object):
@@ -10,10 +10,12 @@ class Results(object):
     """
 
     def __init__(self, nsteps=None, db_pops=False, print_db_pops=False, 
-                 db_pops_file=None, e_ops=None, print_es=False, es_file=None,
-                 store_states=False, store_every=1, print_restart=False, 
-                 restart_file=None, restart_every=1, print_states=False, 
-                 states_file=None, states_every=1, jump_stats=False):
+                 db_pops_file=None, db_grid_pops=False, print_db_grid_pops=False,
+                 db_grid_pops_file=None, db_grid_pops_modes=None, e_ops=None, 
+                 print_es=False, es_file=None, store_states=False, store_every=1,
+                 print_restart=False, restart_file=None, restart_every=1,
+                 print_states=False, states_file=None, states_every=1,
+                 jump_stats=False):
         """Initialize results class.
 
         Attributes
@@ -45,6 +47,12 @@ class Results(object):
         self.print_db_pops = print_db_pops
         self.fdb = None
         self.db_pops_file = db_pops_file
+
+        # diabatic grid populations containers #
+        self.db_gpops = db_grid_pops
+        self.print_db_gpops = print_db_grid_pops
+        self.db_gpops_file = db_grid_pops_file
+        self.db_gpops_modes = db_grid_pops_modes
 
         # TODO
         # expectation value containers #
@@ -149,7 +157,7 @@ class Results(object):
     def print_state(self, ind, time, state):
         np.save(self.states_file+"_"+str(ind), state)
 
-    def analyze_state(self, ind, time, state, si):
+    def analyze_state(self, ind, time, state, si, pbfs):
         """Functional interface between propagation and results class.
         ind - int
         time - float
@@ -174,7 +182,7 @@ class Results(object):
                 if self.fdb==None:
                     # no file is open need to open one
                     if self.db_pops_file == None:
-                        self.fdb = open("output.dat","w")
+                        self.fdb = open("diabatic_pops.dat","w")
                     else:
                         self.fdb = open(self.db_pops_file,"w")
                 self.fdb.write('%.8f '%(time))
@@ -186,6 +194,20 @@ class Results(object):
                     self.fdb.write('%.8f '%(self.db[ind,i]))
                 self.fdb.write('\n')
                 self.fdb.flush()
+
+        if self.db_gpops:
+            if self.print_db_gpops: 
+                if self.db_gpops_file == None:
+                   self.db_gpops_file = 'diabatic_grid_pops'
+            dbgpops = diabatic_grid_pops(si['nel'],si['nmodes'],si['nspfs'],
+                        si['npbfs'],si['psistart'],si['psiend'],si['spfstart'],
+                        si['spfend'],pbfs,state,modes=self.db_gpops_modes)
+            if self.db_gpops_modes is None:
+                for mode in range(si['nmodes']):
+                    np.save(self.db_gpops_file+'_mode_%d_%d.npy'%(mode,ind),dbgpops[mode],allow_pickle=True)
+            else:
+                for i,mode in enumerate(self.db_gpops_modes):
+                    np.save(self.db_gpops_file+'_mode_%d_%d.npy'%(mode,ind),dbgpops[i],allow_pickle=True)
 
         #if self.e_ops != None:
         #    if self.print_es: 
