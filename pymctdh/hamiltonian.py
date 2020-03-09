@@ -24,8 +24,9 @@ class Hamiltonian(object):
             for i in range(nmodes):
                 # make all the operators for the pbf
                 pbfs[i].make_operators(self.ops[i])
-                # make the 1-body hamiltonian for the pbf
-                pbfs[i].make_1b_ham(self.nel, self.huterms[i])
+                if not self.huterms is None:
+                    # make the 1-body hamiltonian for the pbf
+                    pbfs[i].make_1b_ham(self.nel, self.huterms[i])
 
     def hterms_setup(self):
         """Setup function that makes sure all keywords are properly defined and
@@ -74,21 +75,24 @@ class Hamiltonian(object):
                     self.hcterms.append( hterm )
                 else:
                     self.hcelterms.append( hterm )
-        # make single-body terms specifically
-        self.huterms = [[[] for i in range(self.nel)] for i in range(self.nmodes)]
-        for hterm in huterms:
-            mode = hterm['modes'][0]
-            elop = hterm['elop']
-            if elop == '1':
-                for alpha in range(self.nel):
+        if len(huterms) == 0:
+            self.huterms = None
+        else:
+            # make single-body terms specifically
+            self.huterms = [[[] for i in range(self.nel)] for i in range(self.nmodes)]
+            for hterm in huterms:
+                mode = hterm['modes'][0]
+                elop = hterm['elop']
+                if elop == '1':
+                    for alpha in range(self.nel):
+                        self.huterms[mode][alpha].append( hterm )
+                elif elop == 'sz':
+                    self.huterms[mode][0].append( hterm )
+                    hterm['coeff'] *= -1.
+                    self.huterms[mode][1].append( hterm )
+                else:
+                    alpha = int(elop[0])
                     self.huterms[mode][alpha].append( hterm )
-            elif elop == 'sz':
-                self.huterms[mode][0].append( hterm )
-                hterm['coeff'] *= -1.
-                self.huterms[mode][1].append( hterm )
-            else:
-                alpha = int(elop[0])
-                self.huterms[mode][alpha].append( hterm )
 
     def compute_unique_ops(self):
         """Makes list of all unique operators that act on spfs
