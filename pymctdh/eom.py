@@ -4,7 +4,7 @@ from pymctdh.wavefunction import Wavefunction
 from pymctdh.optools import compute_el_mes,precompute_ops,compute_uopspfs,matel
 from pymctdh.cy.wftools import (overlap_matrices,compute_density_matrix,
                         invert_density_matrix,act_density,act_projector,
-                        compute_projector,project)
+                        compute_projector,project,reshape_wf,reshape_wf_back)
 from pymctdh.meanfield import (compute_meanfield_corr,compute_meanfield_elcorr,
                        compute_meanfield_uncorr,compute_meanfield_eluncorr,
                        act_meanfield)
@@ -14,36 +14,12 @@ def vmfeom(t, y, npsi, nel, nmodes, nspfs, npbfs, psistart, psiend, spfstart, sp
     """Evaluates the variational mean field equation of motion.
     """
 
-    # reshpae y into A tensor and spfs
-    A = np.zeros(nel, dtype=np.ndarray)
-    spfs = np.zeros(nel, dtype=np.ndarray)
-    for alpha in range(nel):
-        shaper = ()
-        for mode in range(nmodes):
-            shaper += (nspfs[alpha,mode],)
-        # set A
-        ind0 = psistart[0,alpha]
-        indf = psiend[0,alpha]
-        A[alpha] = np.reshape(y[ind0:indf], shaper, order='C')
-        # set spfs
-        ind0 = psistart[1,alpha]
-        indf = psiend[1,alpha]
-        spfs[alpha] = y[ind0:indf]
+    A,spfs = reshape_wf(nel,nmodes,nspfs,psistart,psiend,y)
 
     # using vmf equation of motion
     dA,dspfs = fulleom(nel,nmodes,nspfs,npbfs,spfstart,spfend,ham,pbfs,A,spfs)
 
-    # reshape everything for output
-    dy = np.zeros(npsi, dtype=complex)
-    for alpha in range(nel):
-        ind0 = psistart[0,alpha]
-        indf = psiend[0,alpha]
-        dy[ind0:indf] = dA[alpha].ravel()
-        ind0 = psistart[1,alpha]
-        indf = psiend[1,alpha]
-        dy[ind0:indf] = dspfs[alpha]
-
-    return dy
+    return reshape_wf_back(nel,npsi,psistart,psiend,dA,dspfs)
 
 def fulleom(nel,nmodes,nspfs,npbfs,spfstart,spfend,ham,pbfs,A,spfs):
     """Evaluates the equation of motion for the coefficients and orbitals.
