@@ -89,6 +89,13 @@ def make_ho_ops(params,op,sparse=False):
         opout = sp.csr_matrix(opout)
     return opout
 
+def make_ho_grid(params):
+    """Function that returns the dvr grid for the harmonic oscillator basis.
+    """
+    q = make_ho_ops(params,'q')
+    w,v = np.linalg.eigh(q)
+    return w,v
+
 def make_sinc_ops(params,op,sparse=True):
     """Function that returns the matrix representation of various operators in
     the sinc function basis.
@@ -118,7 +125,9 @@ def make_sinc_ops(params,op,sparse=True):
                 else:
                     opout[i,j] = pre*2./float(i-j)**2.
     else:
-        raise ValueError("Not a valid operator for HO basis")
+        raise ValueError("Not a valid operator for sinc function basis")
+    if sparse:
+        opout = sp.csr_matrix(opout)
     return opout
 
 def make_planewave_ops(params,op,sparse=True):
@@ -149,9 +158,10 @@ def make_planewave_ops(params,op,sparse=True):
         for i in range(npbf-1):
             opout[i,i+1] = 0.5
             opout[i+1,i] = 0.5
+    else:
+        raise ValueError("Not a valid operator for planewave basis")
     if sparse:
-        #opout = sp.csr_matrix(opout)
-        opout = make_csr(int(npbf),opout)
+        opout = sp.csr_matrix(opout)
     return opout
 
 def make_morse_ops(params,op,sparse=True):
