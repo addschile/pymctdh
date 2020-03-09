@@ -9,19 +9,22 @@ class PBasis:
     """
     """
 
-    def __init__(self, args, combined=False, sparse=False):
+    def __init__(self, args, combined=False, sparse=False, makegrid=True):
         """
         """
         self.combined = combined
         self.sparse = sparse
+        self.dvrproj = None
 
         if self.combined:
+            self.sparse = True
             self.nmodes = len(args)
             # create new pbasis for each mode
             self.pbasis = []
             for i in range(self.nmodes):
                 self.pbasis.append( PBasis(args[i], sparse=self.sparse) )
         else:
+            self.nmodes = 1
             self.params = {}
             self.params['basis'] = args[0].lower()
             self.sparse = sparse
@@ -33,18 +36,33 @@ class PBasis:
                 self.params['omega'] = args[3]
                 self.npbfs = self.params['npbf']
                 self.make_ops = opfactory.make_ho_ops
-                #self.grid = make_ho_grid(self.params['npbf'])
+                if makegrid:
+                    if self.combined:
+                        self.vgrid = []
+                        for i in range(self.nmodes):
+                            vgrid = sp.lil_matrix(self.pbasis[i].vgrid)
+                            for j in range(self.nmodes):
+                                if i<j:
+                                    vgrid = sp.kron(self.vgrid, sp.eye(self.pbasis.params['npbf'], fmt='lil'))
+                                elif i>j:
+                                    vgrid = sp.kron(sp.eye(self.pbasis.params['npbf'], fmt='lil'), self.vgrid)
+                            self.vgrid.append( sp.csr_matrix(vgrid) )
+                    else:
+                        self.grid,self.vgrid = opfactory.make_ho_grid(self.params)
+                try:
+                    self.params['dvr'] = args[4]
+                except:
+                    self.params['dvr'] = False
             elif self.params['basis'] == 'sinc':
                 self.params['npbf'] = args[1]
                 self.params['qmin'] = args[2]
                 self.params['qmax'] = args[3]
                 self.params['dq']   = args[4]
                 self.params['mass'] = args[5]
-                if isinstance(self.params['npbf'], list):
-                    self.make_ops = opfactory.make_sinc_ops_combined
-                else:
-                    self.make_ops = opfactory.make_sinc_ops
+                self.params['dvr'] = True
+                self.make_ops = opfactory.make_sinc_ops
                 self.grid = np.arange(qmin,qmax+dq,dq)
+                self.vgrid = None
             elif self.params['basis'] == 'plane wave':
                 if args[1]%2 == 0:
                     self.params['npbf'] = args[1]+1
@@ -52,36 +70,17 @@ class PBasis:
                     self.params['npbf'] = args[1]
                 self.params['nm']   = int((args[1]-1)/2)
                 self.params['mass'] = args[2]
-                if len(args) == 4:
-                    self.combined = args[3]
-                else:
-                    self.combined = False
-                if self.combined:
+                self.make_ops = opfactory.make_planewave_ops
+                try:
+                    self.params['dvr'] = args[4]
+                except:
+                    self.params['dvr'] = False
+                if self.params['dvr']:
                     raise NotImplementedError
-                else:
-                    self.make_ops = opfactory.make_planewave_ops
             elif self.params['basis'] == 'plane wave dvr':
                 raise NotImplementedError
-                #if args[1]%2 == 0:
-                #    self.params['npbf'] = args[1]+1
-                #else:
-                #    self.params['npbf'] = args[1]
-                #self.params['nm']   = int((args[1]-1)/2)
-                #self.params['mass'] = args[2]
-                #if len(args) == 4:
-                #    self.combined = args[3]
-                #else:
-                #    self.combined = False
-                #if self.combined:
-                #    raise NotImplementedError
-                #else:
-                #    self.make_ops = opfactory.make_planewave_ops
-                #    #self.grid = np.arange(qmin,qmax+dq,dq)
             elif self.params['basis'] == 'radial':
                 raise NotImplementedError
-                #self.params['npbf'] = args[1]
-                #self.params['dq']   = args[2]
-                #self.params['mass'] = args[3]
             else:
                 raise ValueError("Not a valid basis.")
 
@@ -133,23 +132,15 @@ class PBasis:
                 else:
                     raise ValueError("Incorrectly defined term for combined mode.")
         else:
-            # TODO I think this was supposed to be for inputing custom operators
-            #if matrix is None:
-            #    matrix = [None for i in range(len(ops))]
             for i,op in enumerate(ops):
                 if not op in self.ops:
                     self.ops[op] = self.make_ops(self.params,op,sparse=self.sparse)
-                    #if matrix[i] is None:
-                    #    self.ops[op] = self.make_ops(self.params,op,sparse=self.sparse)
-                    #else:
-                    #    self.ops[op] = matrix[i]
-                ## TODO make this for custom operators
-                #if isinstance(op,str):
-                #    self.ops[op] = self.make_ops(params,op)
-                #else:
-                #    ind = 'c%d'%(count)
-                #    count += 1
-                #    self.ops[op] = op.copy()
+                    if self.params['dvr']:
+                        if not self.vgrid is None:
+                            self.ops[op] = self.vgrid.conj().T@self.ops[op]@self.vgrid
+                            #print(op)
+                            #print(np.diag(self.ops[op]))
+                            #print('')
 
     def make_1b_ham(self, nel, terms):
         """Make the 1-body hamiltonians that act on the spfs with this pbf.
@@ -169,7 +160,6 @@ class PBasis:
                     op += coeff*self.ops[opstr]
             op1b.append( op )
         self.ops['1b'] = op1b
-        return
 
     def operate1b(self, spf, alpha):
         """Operate the single-body hamiltonian on a single spf.
@@ -180,3 +170,35 @@ class PBasis:
         """Operate a single-body term on a single spf.
         """
         return self.ops[term]@spf
+
+    def dvrtrans(self, spf):
+        """Returns the DVR transformed
+        """
+        #if self.params['dvr']:
+        #    # the spfs are already in the dvr grid basis
+        #    return spf
+        #else:
+        return self.vgrid.conj().T@spf
+
+    def makedvrproj(self):
+        """Make projection operators onto grid points of dvr basis.
+        """
+        if self.combined:
+            for i in range(self.nmodes):
+                self.pbasis[i].makedvrproj()
+            self.dvrproj = list()
+            for i in range(self.nmodes):
+                modeproj = list()
+                for j in range(self.pbasis.params['npbf']):
+                    proj = self.pbasis.dvrproj[j]
+                    for k in range(self.nmodes):
+                        if k<i:
+                            proj = sp.kron(sp.eye((self.pbasis[k].params['npbf'],)*2,format='csr'),proj)
+                        elif k>i:
+                            proj = sp.kron(proj,sp.eye((self.pbasis[k].params['npbf'],)*2,format='csr'))
+                    modeproj.append( proj )
+                self.dvrproj.append( modeproj )
+        else:
+            self.dvrproj = list()
+            for i in range(self.params['npbf']):
+                self.dvrproj.append( sp.csr_matrix(([1.], ([i],[i])), shape=(self.params['npbf'],)*2) )
