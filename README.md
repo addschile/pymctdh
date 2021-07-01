@@ -24,3 +24,4 @@ On the agenda of things to do or implement:
 - Spectroscopic simulations
 - Improved relaxation
 - Multilayer version of MCTDH
+- projector splitting algorithm
