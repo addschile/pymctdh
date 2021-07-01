@@ -4,9 +4,9 @@ from time import time
 import numpy as np
 import scipy.integrate
 
-from pymctdh.eom import vmfeom
-from pymctdh.results import Results
-from pymctdh.cy.wftools import normalize_wf
+from .eom import vmfeom
+from .results import Results
+from .cy.wftools import normalize_wf
 
 def vmfpropagate(times, ham, pbfs, wf, results=None, return_wf=False):
     """Propagate MCTDH wavefunction based on Dirac-Frenkel variational

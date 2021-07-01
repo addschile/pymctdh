@@ -1,6 +1,6 @@
 import numpy as np
 import pymctdh.units as units
-from pymctdh.optools import isdiag
+from .optools import isdiag
 
 class Hamiltonian(object):
 

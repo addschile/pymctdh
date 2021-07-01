@@ -1,11 +1,11 @@
 import sys
 import numpy as np
-from pymctdh.wavefunction import Wavefunction
-from pymctdh.optools import compute_el_mes,precompute_ops,compute_uopspfs,matel
-from pymctdh.cy.wftools import (overlap_matrices,compute_density_matrix,
+from .wavefunction import Wavefunction
+from .optools import compute_el_mes,precompute_ops,compute_uopspfs,matel
+from .cy.wftools import (overlap_matrices,compute_density_matrix,
                         invert_density_matrix,act_density,act_projector,
                         compute_projector,project,reshape_wf,reshape_wf_back)
-from pymctdh.meanfield import (compute_meanfield_corr,compute_meanfield_elcorr,
+from .meanfield import (compute_meanfield_corr,compute_meanfield_elcorr,
                        compute_meanfield_uncorr,compute_meanfield_eluncorr,
                        act_meanfield)
                        

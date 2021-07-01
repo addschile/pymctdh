@@ -1,9 +1,9 @@
 import numpy as np
 import pymctdh.linalg as LA
 
-from pymctdh.pbasis import PBasis
-from pymctdh.hamiltonian import Hamiltonian
-from pymctdh.cy.wftools import dvrtransform
+from .pbasis import PBasis
+from .hamiltonian import Hamiltonian
+from .cy.wftools import dvrtransform
 
 from copy import deepcopy
 

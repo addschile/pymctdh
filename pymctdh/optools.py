@@ -1,8 +1,8 @@
 import numpy as np
-from pymctdh.cy.wftools import spf_innerprod,overlap_matrices2,compute_projector
-from pymctdh.cy.tensorutils import matelcontract,atensorcontract
 from functools import lru_cache
 from copy import deepcopy
+from .cy.wftools import spf_innerprod,overlap_matrices2,compute_projector
+from .cy.tensorutils import matelcontract,atensorcontract
 
 @lru_cache(maxsize=None,typed=False)
 def isdiag(op):

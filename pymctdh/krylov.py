@@ -1,8 +1,8 @@
 import numpy as np
 from scipy.linalg import expm
-from pymctdh.optools import matel
-from pymctdh.cy.wftools import norm,inner
 import pymctdh.units as units
+from .optools import matel
+from .cy.wftools import norm,inner
 
 def lanczos(A, nel, nmodes, nspfs, npbfs, ham, uopips, copips, spfovs, nvecs=5, 
             return_evecs=True):

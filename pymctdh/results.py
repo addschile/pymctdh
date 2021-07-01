@@ -1,8 +1,8 @@
 import numpy as np
 from copy import deepcopy
-from pymctdh.qoperator import QOperator
-from pymctdh.expect import compute_expect,diabatic_pops,diabatic_grid_pops
-from pymctdh.log import print_basic
+from .qoperator import QOperator
+from .expect import compute_expect,diabatic_pops,diabatic_grid_pops
+from .log import print_basic
 
 class Results(object):
     """

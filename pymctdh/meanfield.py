@@ -1,7 +1,7 @@
 import numpy as np
-from pymctdh.optools import compute_el_mes
-from pymctdh.cy.wftools import spf_innerprod,multAtens
-from pymctdh.cy.tensorutils import atensorcontract,ahtensorcontract
+from .optools import compute_el_mes
+from .cy.wftools import spf_innerprod,multAtens
+from .cy.tensorutils import atensorcontract,ahtensorcontract
 
 # TODO this needs to be generalized
 def compute_meanfield_uncorr_op(nel, nmodes, nspf, npbf, spfstart, spfend, 
