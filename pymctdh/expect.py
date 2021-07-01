@@ -1,7 +1,7 @@
 import numpy as np
-from pymctdh.optools import precompute_ops
-from pymctdh.cy.tensorutils import atensorcontract
-from pymctdh.cy.wftools import reshape_wf
+from .optools import precompute_ops
+from .cy.tensorutils import atensorcontract
+from .cy.wftools import reshape_wf
 
 def compute_expect(nel, nmodes, nspfs, npbfs, spfstart, spfend, psistart,
                    psiend, psi, op, pbfs):
@@ -103,6 +103,29 @@ def diabatic_grid_pops(nel,nmodes,nspfs,npbfs,psistart,psiend,spfstart,spfend,
                 modecount += 1
             modetrack += 1
     return grid_pops
+
+##TODO
+#def adiabatic_grid_pops(nel,nmodes,nspfs,npbfs,psistart,psiend,spfstart,spfend,
+#                       pbfs,psi,modes=None):
+#    """
+#    """
+#    # first compute diabatic grid populations
+#    dbgpops = diabatic_grid_poops(nel,nmodes,nspfs,npbfs,psistart,psiend,spfstart,spfend,
+#                       pbfs,psi,modes=modes)
+#
+#    # get total number of modes in simulation
+#    tot_nmodes = 0
+#    for i in range(nmodes):
+#        tot_nmodes += pbfs[i].nmodes
+#
+#    # make array for adiabatic grid populations
+#    if modes is None:
+#        adgpops = np.zeros(tot_nmodes, dtype=np.ndarray)
+#        modes = [i for i in range(tot_nmodes)]
+#    else:
+#        adgpops = np.zeros(len(modes), dtype=np.ndarray)
+#
+#    # loop over the grid
 
 #TODO
 #def adiabatic_pops(wf):
