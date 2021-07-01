@@ -366,3 +366,66 @@ def normalize_wf(int nel,int nmodes,cnp.ndarray[long, ndim=2, mode='c'] nspfs,cn
     # normalize spf
     normalize_spfs(nel,nmodes,nspfs,npbfs,spfstart,psistart,psiend,psi)
     return
+
+def reshape_wf(int nel,int nmodes,cnp.ndarray[long, ndim=2, mode='c'] nspfs,cnp.ndarray[long, ndim=2, mode='c'] psistart,cnp.ndarray[long, ndim=2, mode='c'] psiend,cnp.ndarray[complex, ndim=1, mode='c'] psi):
+    """Reshapes one-dimensional wavefunction array into core tensor and spfs.
+    """
+    cdef int alpha,mode
+    cdef tuple shaper
+    # reshpae y into A tensor and spfs
+    cdef cnp.ndarray A = np.zeros(nel, dtype=np.ndarray)
+    cdef cnp.ndarray spfs = np.zeros(nel, dtype=np.ndarray)
+    for alpha in range(nel):
+        shaper = ()
+        for mode in range(nmodes):
+            shaper += (nspfs[alpha,mode],)
+        # set A
+        ind0 = psistart[0,alpha]
+        indf = psiend[0,alpha]
+        A[alpha] = np.reshape(psi[ind0:indf], shaper, order='C')
+        # set spfs
+        ind0 = psistart[1,alpha]
+        indf = psiend[1,alpha]
+        spfs[alpha] = psi[ind0:indf]
+    return A,spfs
+
+def reshape_wf_back(int nel,int npsi,cnp.ndarray[long, ndim=2, mode='c'] psistart,cnp.ndarray[long, ndim=2, mode='c'] psiend,cnp.ndarray A,cnp.ndarray spfs):
+    """Reshapes core tensor and spfs into one-dimensional wavefunction array.
+    """
+    cdef int alpha,ind0,indf
+    cdef cnp.ndarray[complex, ndim=1, mode='c'] psi = np.zeros(npsi, dtype=complex)
+    for alpha in range(nel):
+        ind0 = psistart[0,alpha]
+        indf = psiend[0,alpha]
+        psi[ind0:indf] = A[alpha].ravel()
+        ind0 = psistart[1,alpha]
+        indf = psiend[1,alpha]
+        psi[ind0:indf] = spfs[alpha]
+    return psi
+
+def dvrtransform(nel,nmodes,npsi,nspfs,npbfs,psistart,psiend,spfstart,spfend,
+                       pbfs,psi):
+    """Function that computes populations at each grid point in diabatic states.
+    """
+
+    # reshape wf to core tensor and spfs
+    A,spfs = reshape_wf(nel,nmodes,nspfs,psistart,psiend,psi)
+
+    for alpha in range(nel):
+        spf = spfs[alpha]
+        for mode in range(nmodes):
+            pbf = pbfs[mode]
+            if pbf.combined == True:
+                raise NotImplementedError
+            else:
+                npbf = pbf.params['npbf']
+                ind0 = spfstart[alpha,mode]
+                indf = spfend[alpha,mode]
+                # transform spfs for this mode to dvr basis
+                for i in range(nspfs[alpha,mode]):
+                    indf = ind0 + npbf
+                    spf[ind0:indf] = pbf.dvrtrans(spf[ind0:indf])
+                    ind0 += npbf
+
+    # reshape back to 1d array
+    return reshape_wf_back(nel,npsi,psistart,psiend,A,spfs)
