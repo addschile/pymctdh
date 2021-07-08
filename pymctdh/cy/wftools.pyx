@@ -120,8 +120,7 @@ def compute_density_matrix(int nspf,int alpha,int nmodes,int mode,cnp.ndarray A)
     """
     cdef int i
     cdef cnp.ndarray[complex, ndim=2, mode='c'] rho = np.zeros((nspf,)*2, dtype=complex)
-    cdef list modes = [i for i in range(nmodes)]
-    modes.remove( mode )
+    cdef list modes = [i for i in range(nmodes) if i!=mode]
     return np.tensordot(A.conj(),A,axes=[modes,modes])
 
 def invert_density_matrix(cnp.ndarray[complex, ndim=2, mode='c'] rho, regularization='default', eps=1.e-8):
