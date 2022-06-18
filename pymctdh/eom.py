@@ -190,6 +190,14 @@ def eom_spfs(nel,nmodes,nspfs,npbfs,spfstart,spfend,uopspfs,copspfs,copips,
         compute_meanfield_elcorr(nel,nmodes,nspfs,npbfs,spfstart,spfend,
                                  hcelterms,spfovs,A,spfs,spfsout)
 
+#    # add uncorrelated terms
+#    if not uopspfs is None:
+#        compute_meanfield_uncorr(nel,nmodes,spfstart,spfend,uopspfs,spfs,spfsout)
+#
+#    # add uncorrelated electronic terms
+#    if len(huelterms) != 0:
+#        compute_meanfield_eluncorr(nel,nmodes,spfstart,spfend,huelterms,spfs,spfsout)
+
     # compute, invert, and act density matrices
     for alpha in range(nel):
         for mode in range(nmodes):

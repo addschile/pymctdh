@@ -90,4 +90,4 @@ if __name__ == "__main__":
     times = np.arange(0.0,120.,dt)*pymctdh.units.convert_to('fs')
 
     results = pymctdh.Results(nsteps=len(times), db_pops=True, print_db_pops=True, db_pops_file='pyr4_jumps_combined_sparse.txt')
-    results = pymctdh.vmfpropagatejumps(times, ham, pbfs, Ls, LdLs, wf, ntraj=1, results=results, seed=2)
+    results = pymctdh.vmfpropagatejumps(times, ham, pbfs, Ls, LdLs, wf, ntraj=1, results=results, seed=3)
